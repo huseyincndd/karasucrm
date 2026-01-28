@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================
+// USER (Ekip Üyeleri)
+// =====================
+// Settings sayfasından eklenir
+// Giriş yapmak için username + password kullanılır
+model User {
+  id         String   @id @default(cuid())
+  username   String   @unique  // Giriş için kullanılır
+  password   String   // bcrypt ile hashlenmiş şifre
+  name       String   // Görünen isim
+  role       String   // Pozisyon: Video Editor, Graphic Designer, etc.
+  department String   // Departman: video, design, content
+  avatar     String?  // Profil resmi URL (opsiyonel)
+  isAdmin    Boolean  @default(false)  // Admin yetkisi
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // İlişkiler
+  tasks Task[]  // Bu kullanıcıya atanan görevler
+}
+
+// =====================
+// CLIENT (Müşteriler/Şirketler)  
+// =====================
+// Müşteriler sayfasından eklenir
+// Her müşterinin paket tipi ve dönem bilgisi var
+model Client {
+  id          String   @id @default(cuid())
+  name        String   // Şirket adı
+  logo        String?  // Logo URL (opsiyonel, yoksa isimden avatar oluşturulur)
+  packageType String   // Paket: vitrin, plus, premium
+  startDate   DateTime // Başlangıç tarihi
+  renewalDate DateTime // Yenileme tarihi
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // İlişkiler
+  tasks Task[]  // Bu müşteriye ait görevler
+
+  // NOT: usedQuota ve plannedDates Task'lardan hesaplanır
+  // Ayrı alan gerekmiyor
+}
+
+// =====================
+// TASK (Görevler)
+// =====================
+// ClientPlanner'dan oluşturulur (tarih + içerik tipi seçilince)
+// Takvimde ve Görevlerim'de görünür
+model Task {
+  id          String   @id @default(cuid())
+  title       String?  // Görev başlığı (opsiyonel)
+  contentType String   // İçerik tipi: reels, posts, stories
+  date        DateTime // Planlanan tarih
+  status      String   @default("beklemede") // Durum: beklemede, hazir, tamamlandi
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // İlişkiler
+  clientId   String
+  client     Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  assignedTo String
+  assignee   User   @relation(fields: [assignedTo], references: [id], onDelete: Cascade)
+
+  // İndeksler (performans için)
+  @@index([date])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([clientId])
+}

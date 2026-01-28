@@ -7,34 +7,41 @@ import {
   LayoutDashboard, 
   Users, 
   CheckSquare, 
-  Layers, 
   Settings, 
   LogOut,
-  Command
+  Command,
+  Shield,
+  Archive
 } from 'lucide-react';
-import { USERS } from '@/constants';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Sidebar: React.FC = () => {
   const pathname = usePathname();
-  const currentUser = USERS[0];
+  const { user, logout } = useAuth();
 
-  const navItems = [
-    { label: 'Takvim', icon: LayoutDashboard, href: '/' },
-    { label: 'Müşteriler', icon: Users, href: '/clients' },
-    { label: 'Görevlerim', icon: CheckSquare, href: '/tasks' },
-    { label: 'İçerik Havuzu', icon: Layers, href: '/content' },
-    { label: 'Ayarlar', icon: Settings, href: '/settings' },
+  // Tüm nav items
+  const allNavItems = [
+    { label: 'Takvim', icon: LayoutDashboard, href: '/', adminOnly: false },
+    { label: 'Müşteriler', icon: Users, href: '/clients', adminOnly: false },
+    { label: 'Görevlerim', icon: CheckSquare, href: '/tasks', adminOnly: false },
+    { label: 'Arşiv', icon: Archive, href: '/archive', adminOnly: false },
+    { label: 'Ayarlar', icon: Settings, href: '/settings', adminOnly: true }, // Sadece admin
   ];
+
+  // Admin değilse Ayarlar'ı gizle
+  const navItems = allNavItems.filter(item => !item.adminOnly || user?.isAdmin);
 
   return (
     <div className="w-[240px] h-full bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b border-slate-800">
-        <Link href="/" className="flex items-center gap-2.5 text-white font-semibold text-lg">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-            <Command size={16} className="text-slate-900" />
-          </div>
-          AgencyOS
+        <Link href="/" className="flex items-center gap-2.5 text-white font-semibold text-lg hover:opacity-90 transition-opacity">
+          <img 
+            src="https://villaqrmenu.b-cdn.net/447297083_1488295202123950_879512158476665056_n.jpg" 
+            alt="Karasu Reklam" 
+            className="w-8 h-8 rounded-lg object-cover shadow-sm" 
+          />
+          Karasu Reklam
         </Link>
       </div>
 
@@ -64,13 +71,31 @@ const Sidebar: React.FC = () => {
       {/* User */}
       <div className="p-4 border-t border-slate-800">
         <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={currentUser.avatar} alt={currentUser.name} className="w-9 h-9 rounded-full" />
+          {/* Avatar */}
+          {user?.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+              {user?.name?.charAt(0) || '?'}
+            </div>
+          )}
+          
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{currentUser.name}</p>
-            <p className="text-xs text-slate-500 truncate">{currentUser.role}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-white truncate">{user?.name || 'Yükleniyor...'}</p>
+              {user?.isAdmin && (
+                <Shield size={12} className="text-amber-500 flex-shrink-0" />
+              )}
+            </div>
+            <p className="text-xs text-slate-500 truncate">{user?.role || ''}</p>
           </div>
-          <button className="text-slate-500 hover:text-white transition-colors">
+          
+          <button 
+            onClick={logout}
+            className="text-slate-500 hover:text-white transition-colors"
+            title="Çıkış Yap"
+          >
             <LogOut size={16} />
           </button>
         </div>

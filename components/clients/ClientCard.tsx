@@ -9,12 +9,12 @@ interface ClientCardProps {
   onClick: () => void;
 }
 
-const SIMULATED_TODAY = new Date(2026, 0, 27);
-
 const ClientCard: React.FC<ClientCardProps> = ({ client, onClick }) => {
   // Calculate days until renewal
   const renewalDate = new Date(client.renewalDate);
-  const daysLeft = Math.ceil((renewalDate.getTime() - SIMULATED_TODAY.getTime()) / (1000 * 60 * 60 * 24));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((renewalDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   const isUrgent = daysLeft <= 3;
   
   const quota = PACKAGE_QUOTAS[client.package];
@@ -35,12 +35,18 @@ const ClientCard: React.FC<ClientCardProps> = ({ client, onClick }) => {
     >
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img 
-          src={client.logo} 
-          alt={client.name}
-          className="w-12 h-12 rounded-lg object-cover"
-        />
+        {client.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img 
+            src={client.logo} 
+            alt={client.name}
+            className="w-12 h-12 rounded-lg object-cover"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+            {client.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-slate-900 truncate">{client.name}</h3>
           <span className={`

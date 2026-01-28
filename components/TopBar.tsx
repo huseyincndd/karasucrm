@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronDown, Filter, Calendar as CalendarIcon, Search } from 'lucide-react';
+import { ChevronDown, Filter, Calendar as CalendarIcon, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ViewMode, FilterState, Platform, Status } from '@/types';
 
 interface TopBarProps {
@@ -10,19 +10,54 @@ interface TopBarProps {
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   clients: string[];
+  currentDate: Date;
+  onDateChange: (date: Date) => void;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilters, clients }) => {
+const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+
+const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilters, clients, currentDate, onDateChange }) => {
   
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handlePrevMonth = () => {
+    const newDate = new Date(currentDate);
+    newDate.setMonth(newDate.getMonth() - 1);
+    onDateChange(newDate);
+  };
+
+  const handleNextMonth = () => {
+    const newDate = new Date(currentDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+    onDateChange(newDate);
   };
 
   return (
     <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-10 shadow-sm">
       {/* Left: Filters */}
       <div className="flex items-center gap-4">
-        <div className="text-xl font-bold text-slate-800 tracking-tight">Calendar</div>
+        <div className="flex items-center gap-3">
+          <div className="text-xl font-bold text-slate-800 tracking-tight">Calendar</div>
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+            <button 
+              onClick={handlePrevMonth}
+              className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-slate-500 hover:text-slate-900"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="px-2 text-sm font-semibold text-slate-700 min-w-[100px] text-center select-none">
+              {MONTH_NAMES[currentDate.getMonth()]} {currentDate.getFullYear()}
+            </span>
+             <button 
+              onClick={handleNextMonth}
+              className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-slate-500 hover:text-slate-900"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
         
         <div className="h-6 w-px bg-slate-200 mx-2"></div>
 
@@ -100,10 +135,7 @@ const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilt
           ))}
         </div>
 
-        <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-sm shadow-indigo-200 transition-all active:scale-95">
-          <CalendarIcon size={16} />
-          Create
-        </button>
+
       </div>
     </div>
   );

@@ -10,36 +10,74 @@ import {
 } from 'lucide-react';
 
 interface CalendarProps {
-  tasks: Task[];
+  tasks: any[]; // Using any to accommodate the mapped type
   onDayClick: (date: string, dayNum: number) => void;
+  currentDate: Date;
 }
 
 const WEEKDAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-const SIMULATED_TODAY_DATE = 27;
 
-// Status hesaplama
-const getTaskStatus = (task: Task, dayNum: number) => {
-  if (task.status === Status.PUBLISHED) return 'done';
-  if (task.fileUrl) return 'ready';
-  const daysUntil = dayNum - SIMULATED_TODAY_DATE;
-  if (daysUntil <= 2) return 'urgent';
+// Status calculation
+const getTaskStatus = (task: any, todayNum: number) => {
+  // Use rawStatus from API if available
+  if (task.rawStatus) {
+    if (task.rawStatus === 'tamamlandi') return 'done';
+    if (task.rawStatus === 'hazir') return 'ready';
+    
+    // Parse task date properly to calculate urgency
+    const taskDate = new Date(task.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    taskDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = taskDate.getTime() - today.getTime();
+    const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (daysUntil <= 2 && daysUntil >= 0) return 'urgent';
+    return 'waiting';
+  }
+
+  // Fallback
   return 'waiting';
 };
 
-const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick }) => {
-  const year = 2026;
-  const month = 0;
+const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) => {
+  const today = new Date();
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth(); // 0-indexed (0 = January)
+  
+  // Real today for highlighting
+  const realCurrentDayNum = today.getDate();
+  const isRealCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
 
   const firstDayOfMonth = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // getDay returns 0 for Sunday. We want Monday to be 0 for our grid (Pzt, Sal...)
+  // Sunday (0) -> 6
+  // Monday (1) -> 0
+  // ...
   const startingDayIndex = (firstDayOfMonth.getDay() + 6) % 7;
 
   const days: { dayNum: number | null; dateStr: string | null }[] = [];
+  
+  // Previous month padding
   for (let i = 0; i < startingDayIndex; i++) days.push({ dayNum: null, dateStr: null });
+  
+  // Current month days
   for (let i = 1; i <= daysInMonth; i++) {
-    const dateStr = new Date(year, month, i).toISOString().split('T')[0];
+    // Construct ISO date string properly using local time components to avoid TZ issues
+    // Or simply:
+    const d = new Date(year, month, i);
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yr}-${mo}-${da}`;
+    
     days.push({ dayNum: i, dateStr: dateStr });
   }
+  
+  // Next month padding to fill grid (42 cells usually covers all months)
   const remainingCells = 42 - days.length;
   for (let i = 0; i < remainingCells; i++) days.push({ dayNum: null, dateStr: null });
 
@@ -62,19 +100,24 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick }) => {
             const dayTasks = dayObj.dateStr ? tasks.filter(t => t.date === dayObj.dateStr) : [];
             
             const dayNum = dayObj.dayNum || 0;
-            const isToday = dayNum === SIMULATED_TODAY_DATE && !isPadding;
-            const isPast = dayNum < SIMULATED_TODAY_DATE && !isPadding;
+            const isToday = dayNum === realCurrentDayNum && !isPadding && isRealCurrentMonth;
+            
+            // Basic past check: strictly less than today (if current month) OR past month
+            const isPast = !isPadding && (
+              (isRealCurrentMonth && dayNum < realCurrentDayNum) || 
+              (new Date(year, month, 1) < new Date(today.getFullYear(), today.getMonth(), 1))
+            );
 
             // Platform counts
-            const reels = dayTasks.filter(t => t.platform === Platform.REEL).length;
-            const posts = dayTasks.filter(t => t.platform === Platform.POST).length;
-            const stories = dayTasks.filter(t => t.platform === Platform.STORY).length;
+            const reels = dayTasks.filter(t => (t.platform === Platform.REEL) || (t.rawContentType === 'reels')).length;
+            const posts = dayTasks.filter(t => (t.platform === Platform.POST) || (t.rawContentType === 'posts')).length;
+            const stories = dayTasks.filter(t => (t.platform === Platform.STORY) || (t.rawContentType === 'stories')).length;
 
             // Status counts
-            const waiting = dayTasks.filter(t => getTaskStatus(t, dayNum) === 'waiting').length;
-            const urgent = dayTasks.filter(t => getTaskStatus(t, dayNum) === 'urgent').length;
-            const ready = dayTasks.filter(t => getTaskStatus(t, dayNum) === 'ready').length;
-            const done = dayTasks.filter(t => getTaskStatus(t, dayNum) === 'done').length;
+            const waiting = dayTasks.filter(t => getTaskStatus(t, realCurrentDayNum) === 'waiting').length;
+            const urgent = dayTasks.filter(t => getTaskStatus(t, realCurrentDayNum) === 'urgent').length;
+            const ready = dayTasks.filter(t => getTaskStatus(t, realCurrentDayNum) === 'ready').length;
+            const done = dayTasks.filter(t => getTaskStatus(t, realCurrentDayNum) === 'done').length;
 
             if (isPadding) {
               return <div key={index} className="h-36 bg-slate-100/50 border-b border-r border-slate-100" />;

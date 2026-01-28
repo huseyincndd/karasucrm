@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   CheckSquare, 
   Calendar, 
@@ -15,30 +16,52 @@ import {
   Filter,
   Users,
   AlertTriangle,
-  Send
+  Send,
+  Loader2,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { 
-  STAFF_MEMBERS, 
-  MOCK_ASSIGNMENTS, 
-  TaskAssignment,
   TaskStatus,
-  StaffMember,
   ContentType,
   CONTENT_TYPE_LABELS,
   CONTENT_TYPE_COLORS,
   DEPARTMENT_LABELS
 } from '@/constants/staff';
 
-// ===== ADMIN VIEW =====
-// This page shows all tasks for all team members (admin view)
-// Non-admin users will only see their own tasks (future implementation)
+// ===== GÖREVLER SAYFASI =====
+// Admin: Tüm ekip üyelerinin görevlerini görür ve filtreleyebilir
+// Normal kullanıcı: Sadece kendi görevlerini görür
 
-const SIMULATED_TODAY = new Date(2026, 0, 27);
+// API'den gelen task tipi
+interface ApiTask {
+  id: string;
+  title: string | null;
+  contentType: string;
+  date: string;
+  status: string;
+  clientId: string;
+  clientName: string;
+  clientLogo: string | null;
+  clientPackage?: string;
+  staffId: string;
+  staffName: string;
+  staffAvatar: string | null;
+  staffRole?: string;
+  staffDepartment?: string;
+  createdAt: string;
+}
 
-// Status configuration matching calendar page:
-// - beklemede (Waiting) = White/Slate
-// - hazir (Ready, waiting for its day) = Yellow/Amber  
-// - tamamlandi (Completed) = Green/Emerald
+// API'den gelen user tipi (staff olarak kullanılacak)
+interface ApiUser {
+  id: string;
+  name: string;
+  role: string;
+  department: string;
+  avatar: string | null;
+}
+
+// Status configuration matching calendar page
 const getStatusConfig = (status: TaskStatus) => {
   switch (status) {
     case 'beklemede':
@@ -65,6 +88,14 @@ const getStatusConfig = (status: TaskStatus) => {
         text: 'text-emerald-600',
         border: 'border-emerald-200'
       };
+    default:
+      return { 
+        label: 'Beklemede', 
+        icon: Clock, 
+        bg: 'bg-slate-50', 
+        text: 'text-slate-600',
+        border: 'border-slate-200'
+      };
   }
 };
 
@@ -73,6 +104,7 @@ const getContentIcon = (type: ContentType) => {
     case 'reels': return Video;
     case 'posts': return ImageIcon;
     case 'stories': return Circle;
+    default: return Circle;
   }
 };
 
@@ -85,85 +117,208 @@ const formatDate = (dateStr: string) => {
 
 const getDaysUntil = (dateStr: string) => {
   const date = new Date(dateStr);
-  const diff = Math.ceil((date.getTime() - SIMULATED_TODAY.getTime()) / (1000 * 60 * 60 * 24));
+  const today = new Date();
+  // Reset time part for accurate day calculation
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  
+  const diff = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   return diff;
 };
 
 export default function TasksPage() {
+  const { user, loading: authLoading } = useAuth();
+  const isAdmin = user?.isAdmin ?? false;
+  
+  // State
+  const [tasks, setTasks] = useState<ApiTask[]>([]);
+  const [staff, setStaff] = useState<ApiUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [selectedStaff, setSelectedStaff] = useState<string | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | 'all'>('all');
-  const [assignments, setAssignments] = useState<TaskAssignment[]>(MOCK_ASSIGNMENTS);
 
-  // Filter assignments
-  const filteredAssignments = useMemo(() => {
-    return assignments.filter(a => {
-      if (selectedStaff !== 'all' && a.staffId !== selectedStaff) return false;
-      if (selectedStatus !== 'all' && a.status !== selectedStatus) return false;
-      return true;
-    });
-  }, [assignments, selectedStaff, selectedStatus]);
+  // Fetch tasks from API
+  const fetchTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (selectedStaff !== 'all' && isAdmin) {
+        params.append('staffId', selectedStaff);
+      }
+      if (selectedStatus !== 'all') {
+        params.append('status', selectedStatus);
+      }
+      
+      // Active View Logic: Start from 5 days ago to capture recent pending tasks
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+      params.append('startDate', fiveDaysAgo.toISOString().split('T')[0]);
+      
+      const url = `/api/tasks${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Görevler yüklenemedi');
+      }
+      
+      const data = await res.json();
+      
+      // Client-side filtering: Hide past completed tasks unless specifically filtered
+      const todayStr = new Date().toISOString().split('T')[0];
+      const filteredResult = data.tasks.filter((t: ApiTask) => {
+        // If user explicitly asks for 'tamamlandi', show them (within the 5-day range)
+        if (selectedStatus === 'tamamlandi') return true;
+        
+        // Future & Today always show
+        if (t.date >= todayStr) return true;
+        
+        // Past tasks: Hide if completed (Archived)
+        return t.status !== 'tamamlandi';
+      });
 
-  // Group assignments by staff member
-  const assignmentsByStaff = useMemo(() => {
-    const grouped: Record<string, TaskAssignment[]> = {};
+      setTasks(filteredResult);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedStaff, selectedStatus, isAdmin]);
+
+  // Fetch staff (for filter dropdown)
+  const fetchStaff = useCallback(async () => {
+    if (!isAdmin) return; // Non-admins don't need staff list
     
-    STAFF_MEMBERS.forEach(staff => {
-      grouped[staff.id] = filteredAssignments.filter(a => a.staffId === staff.id);
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        setStaff(data.users);
+      }
+    } catch (err) {
+      console.error('Staff fetch error:', err);
+    }
+  }, [isAdmin]);
+
+  // Initial data fetch
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchTasks();
+      fetchStaff();
+    }
+  }, [authLoading, user, fetchTasks, fetchStaff]);
+
+  // Filter assignments based on user role (already filtered by API for non-admins)
+  const filteredTasks = useMemo(() => {
+    // API already filters for non-admins, but we need local filtering for admins
+    let result = tasks;
+    
+    // Apply local filters if needed (for real-time UI updates)
+    if (selectedStatus !== 'all') {
+      result = result.filter(t => t.status === selectedStatus);
+    }
+    
+    return result;
+  }, [tasks, selectedStatus]);
+
+  // Group tasks by staff member
+  const tasksByStaff = useMemo(() => {
+    const grouped: Record<string, { staff: { id: string; name: string; avatar: string | null; role: string; department: string }; tasks: ApiTask[] }> = {};
+    
+    filteredTasks.forEach(task => {
+      if (!grouped[task.staffId]) {
+        grouped[task.staffId] = {
+          staff: {
+            id: task.staffId,
+            name: task.staffName,
+            avatar: task.staffAvatar,
+            role: task.staffRole || '',
+            department: task.staffDepartment || ''
+          },
+          tasks: []
+        };
+      }
+      grouped[task.staffId].tasks.push(task);
     });
     
     return grouped;
-  }, [filteredAssignments]);
+  }, [filteredTasks]);
 
   // Stats
   const stats = useMemo(() => {
-    const total = assignments.length;
-    const beklemede = assignments.filter(a => a.status === 'beklemede').length;
-    const hazir = assignments.filter(a => a.status === 'hazir').length;
-    const tamamlandi = assignments.filter(a => a.status === 'tamamlandi').length;
-    // Acil: only 'beklemede' tasks with close deadline (hazir is ready, not urgent)
-    const urgent = assignments.filter(a => getDaysUntil(a.date) <= 1 && a.status === 'beklemede').length;
-    // Paylaş: 'hazir' tasks that are due today
-    const paylasim = assignments.filter(a => getDaysUntil(a.date) === 0 && a.status === 'hazir').length;
+    const total = tasks.length;
+    const beklemede = tasks.filter(t => t.status === 'beklemede').length;
+    const hazir = tasks.filter(t => t.status === 'hazir').length;
+    const tamamlandi = tasks.filter(t => t.status === 'tamamlandi').length;
+    const urgent = tasks.filter(t => getDaysUntil(t.date) <= 1 && t.status === 'beklemede').length;
+    const paylasim = tasks.filter(t => getDaysUntil(t.date) === 0 && t.status === 'hazir').length;
     
     return { total, beklemede, hazir, tamamlandi, urgent, paylasim };
-  }, [assignments]);
+  }, [tasks]);
 
   // Update task status
-  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    setAssignments(prev => prev.map(a => 
-      a.id === taskId ? { ...a, status: newStatus } : a
-    ));
+  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Durum güncellenemedi');
+      }
+
+      // Update local state
+      setTasks(prev => prev.map(t => 
+        t.id === taskId ? { ...t, status: newStatus } : t
+      ));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Bir hata oluştu');
+    }
   };
 
-  // Staff card component
-  const StaffCard = ({ staff, tasks }: { staff: StaffMember; tasks: TaskAssignment[] }) => {
+  const StaffCard = ({ staffInfo, staffTasks }: { staffInfo: { id: string; name: string; avatar: string | null; role: string; department: string }; staffTasks: ApiTask[] }) => {
     const [isExpanded, setIsExpanded] = useState(true);
-    const tamamlandiCount = tasks.filter(t => t.status === 'tamamlandi').length;
-    const beklemedeCount = tasks.filter(t => t.status === 'beklemede').length;
-    // Acil: only 'beklemede' tasks with close deadline
-    const urgentCount = tasks.filter(t => getDaysUntil(t.date) <= 1 && t.status === 'beklemede').length;
-    // Paylaşım: 'hazir' tasks that are due today
-    const paylasimCount = tasks.filter(t => getDaysUntil(t.date) === 0 && t.status === 'hazir').length;
+    const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+    const tamamlandiCount = staffTasks.filter(t => t.status === 'tamamlandi').length;
+    const beklemedeCount = staffTasks.filter(t => t.status === 'beklemede').length;
+    const urgentCount = staffTasks.filter(t => getDaysUntil(t.date) <= 1 && t.status === 'beklemede').length;
+    const paylasimCount = staffTasks.filter(t => getDaysUntil(t.date) === 0 && t.status === 'hazir').length;
 
-    if (tasks.length === 0 && selectedStaff === 'all') return null;
+    if (staffTasks.length === 0 && selectedStaff === 'all') return null;
 
     return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
         {/* Staff Header */}
         <button 
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors rounded-t-xl"
         >
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={staff.avatar} 
-              alt={staff.name}
-              className="w-12 h-12 rounded-full border-2 border-white shadow-sm"
-            />
+            {staffInfo.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img 
+                src={staffInfo.avatar} 
+                alt={staffInfo.name}
+                className="w-12 h-12 rounded-full border-2 border-white shadow-sm"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                {staffInfo.name.charAt(0)}
+              </div>
+            )}
             <div className="text-left">
-              <h3 className="font-semibold text-slate-900">{staff.name}</h3>
-              <p className="text-xs text-slate-500">{staff.role} • {DEPARTMENT_LABELS[staff.department]}</p>
+              <h3 className="font-semibold text-slate-900">{staffInfo.name}</h3>
+              <p className="text-xs text-slate-500">
+                {staffInfo.role} {staffInfo.department ? `• ${DEPARTMENT_LABELS[staffInfo.department as keyof typeof DEPARTMENT_LABELS] || staffInfo.department}` : ''}
+              </p>
             </div>
           </div>
           
@@ -186,7 +341,7 @@ export default function TasksPage() {
                 {beklemedeCount} Bekliyor
               </span>
               <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">
-                {tamamlandiCount}/{tasks.length}
+                {tamamlandiCount}/{staffTasks.length}
               </span>
             </div>
             
@@ -200,35 +355,39 @@ export default function TasksPage() {
         {/* Tasks List */}
         {isExpanded && (
           <div className="border-t border-slate-100">
-            {tasks.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 text-sm">
+            {staffTasks.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 text-sm rounded-b-xl">
                 Bu kullanıcıya atanmış görev yok
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
-                {tasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(task => {
-                  const statusConfig = getStatusConfig(task.status);
+                {staffTasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((task, index) => {
+                  const statusConfig = getStatusConfig(task.status as TaskStatus);
                   const StatusIcon = statusConfig.icon;
-                  const ContentIcon = getContentIcon(task.contentType);
-                  const contentColors = CONTENT_TYPE_COLORS[task.contentType];
+                  const ContentIcon = getContentIcon(task.contentType as ContentType);
+                  const contentColors = CONTENT_TYPE_COLORS[task.contentType as ContentType] || CONTENT_TYPE_COLORS.posts;
                   const daysUntil = getDaysUntil(task.date);
-                  // Acil: only 'beklemede' tasks with close deadline
                   const isUrgent = daysUntil <= 1 && task.status === 'beklemede';
-                  // Paylaş: 'hazir' tasks that are due today
                   const shouldPublish = daysUntil === 0 && task.status === 'hazir';
                   
                   return (
                     <div 
                       key={task.id}
-                      className={`flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors ${isUrgent ? 'bg-rose-50/50' : ''} ${shouldPublish ? 'bg-indigo-50/50' : ''}`}
+                      className={`flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors last:rounded-b-xl ${isUrgent ? 'bg-rose-50/50' : ''} ${shouldPublish ? 'bg-indigo-50/50' : ''}`}
                     >
                       {/* Client Logo */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={task.clientLogo} 
-                        alt={task.clientName}
-                        className="w-10 h-10 rounded-lg shadow-sm"
-                      />
+                      {task.clientLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img 
+                          src={task.clientLogo} 
+                          alt={task.clientName}
+                          className="w-10 h-10 rounded-lg shadow-sm object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                          {task.clientName.charAt(0)}
+                        </div>
+                      )}
                       
                       {/* Task Info */}
                       <div className="flex-1 min-w-0">
@@ -241,45 +400,77 @@ export default function TasksPage() {
                             </span>
                           )}
                           {isUrgent && (
-                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-100 text-rose-600 text-xs font-medium rounded animate-pulse">
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-100 text-rose-600 text-xs font-medium rounded">
                               <AlertTriangle size={10} />
                               ACİL
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-slate-500 truncate">{task.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`flex items-center gap-1 text-xs ${contentColors.text}`}>
+                            <ContentIcon size={12} />
+                            {CONTENT_TYPE_LABELS[task.contentType as ContentType] || task.contentType}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <Calendar size={12} />
+                            {formatDate(task.date)}
+                          </span>
+                          {daysUntil >= 0 && task.status !== 'tamamlandi' && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className={`text-xs ${daysUntil <= 1 && task.status === 'beklemede' ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
+                                {daysUntil === 0 ? 'Bugün' : `${daysUntil} gün`}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      
-                      {/* Content Type Badge */}
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${contentColors.bg} ${contentColors.text}`}>
-                        <ContentIcon size={14} />
-                        <span className="text-xs font-medium">{CONTENT_TYPE_LABELS[task.contentType]}</span>
-                      </div>
-                      
-                      {/* Date */}
-                      <div className={`flex items-center gap-1.5 text-sm ${isUrgent ? 'text-rose-600 font-medium' : 'text-slate-500'}`}>
-                        <Calendar size={14} />
-                        <span>{formatDate(task.date)}</span>
-                        {daysUntil === 0 && <span className="text-xs">(Bugün)</span>}
-                        {daysUntil === 1 && <span className="text-xs">(Yarın)</span>}
-                      </div>
-                      
+
                       {/* Status Dropdown */}
                       <div className="relative">
-                        <select
-                          value={task.status}
-                          onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
-                          className={`
-                            appearance-none px-3 py-1.5 pr-8 rounded-lg border text-sm font-medium cursor-pointer
-                            ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}
-                            focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-300
-                          `}
+                        <button
+                          onClick={() => setActiveDropdownId(activeDropdownId === task.id ? null : task.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all hover:scale-105 ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
                         >
-                          <option value="beklemede">Beklemede</option>
-                          <option value="hazir">Hazır</option>
-                          <option value="tamamlandi">Tamamlandı</option>
-                        </select>
-                        <ChevronDown size={14} className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none ${statusConfig.text}`} />
+                          <StatusIcon size={14} />
+                          {statusConfig.label}
+                          <ChevronDown size={14} className="opacity-50" />
+                        </button>
+
+                        {activeDropdownId === task.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-10" 
+                              onClick={() => setActiveDropdownId(null)} 
+                            />
+                            <div className={`absolute right-0 w-36 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-20 animate-in fade-in zoom-in duration-100 ${index >= staffTasks.length - 2 ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'}`}>
+                              {(['beklemede', 'hazir', 'tamamlandi'] as TaskStatus[]).map((status) => {
+                                const optConfig = getStatusConfig(status);
+                                const OptIcon = optConfig.icon;
+                                const isSelected = task.status === status;
+                                
+                                return (
+                                  <button
+                                    key={status}
+                                    onClick={() => {
+                                      handleStatusChange(task.id, status);
+                                      setActiveDropdownId(null);
+                                    }}
+                                    className={`
+                                      w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors
+                                      ${isSelected ? 'bg-slate-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
+                                    `}
+                                  >
+                                    <OptIcon size={14} className={isSelected ? 'text-indigo-600' : 'text-slate-400'} />
+                                    {optConfig.label}
+                                    {isSelected && <Check size={12} className="ml-auto" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -292,141 +483,144 @@ export default function TasksPage() {
     );
   };
 
+  // Loading state - AFTER all hooks
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-full bg-slate-50">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
+            <p className="text-slate-500">Yükleniyor...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 shadow-sm">
+        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <CheckSquare size={20} className="text-slate-400" />
-              <h1 className="text-xl font-semibold text-slate-900">Görevler</h1>
-              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full">
-                Admin
-              </span>
+              <h1 className="text-xl font-semibold text-slate-900">
+                {isAdmin ? 'Görevler' : 'Görevlerim'}
+              </h1>
             </div>
+            <span className="text-sm text-slate-400">
+              {filteredTasks.length} görev
+            </span>
             
-            {/* Stats */}
-            <div className="hidden md:flex items-center gap-3 ml-4 pl-4 border-l border-slate-200">
-              <span className="text-sm text-slate-500">
-                Toplam: <strong className="text-slate-700">{stats.total}</strong>
+            {/* Stats badges */}
+            {stats.paylasim > 0 && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full animate-pulse">
+                <Send size={12} />
+                {stats.paylasim} paylaşılacak
               </span>
-              {stats.urgent > 0 && (
-                <span className="flex items-center gap-1 text-sm text-rose-600 animate-pulse">
-                  <AlertTriangle size={14} />
-                  {stats.urgent} Acil
-                </span>
-              )}
-            </div>
+            )}
+            {stats.urgent > 0 && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">
+                <AlertTriangle size={12} />
+                {stats.urgent} acil
+              </span>
+            )}
+            
+            {/* Refresh button */}
+            <button
+              onClick={fetchTasks}
+              disabled={loading}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Yenile"
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
           
           {/* Filters */}
           <div className="flex items-center gap-3">
-            {/* Staff Filter */}
-            <div className="relative">
-              <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <select 
-                value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
-                className="appearance-none pl-9 pr-8 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="all">Tüm Ekip</option>
-                {STAFF_MEMBERS.map(staff => (
-                  <option key={staff.id} value={staff.id}>{staff.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Status Filter */}
-            <div className="relative">
-              <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            {/* Status Filter (everyone can use) */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
+              <Filter size={14} className="text-slate-400" />
               <select 
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value as TaskStatus | 'all')}
-                className="appearance-none pl-9 pr-8 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                className="bg-transparent text-sm text-slate-700 focus:outline-none"
               >
                 <option value="all">Tüm Durumlar</option>
                 <option value="beklemede">Beklemede</option>
                 <option value="hazir">Hazır</option>
                 <option value="tamamlandi">Tamamlandı</option>
               </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="px-6 py-4 bg-white border-b border-slate-100">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Beklemede - White/Slate */}
-            <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="w-10 h-10 flex items-center justify-center bg-white rounded-lg border border-slate-200">
-                <Clock size={20} className="text-slate-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-slate-700">{stats.beklemede}</p>
-                <p className="text-xs text-slate-500">Beklemede</p>
-              </div>
             </div>
             
-            {/* Hazır - Yellow/Amber */}
-            <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-xl border border-amber-100">
-              <div className="w-10 h-10 flex items-center justify-center bg-amber-100 rounded-lg">
-                <Hourglass size={20} className="text-amber-600" />
+            {/* Staff Filter (Admin only) */}
+            {isAdmin && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
+                <Users size={14} className="text-slate-400" />
+                <select 
+                  value={selectedStaff}
+                  onChange={(e) => {
+                    setSelectedStaff(e.target.value);
+                    // Re-fetch with new filter
+                    setTimeout(fetchTasks, 0);
+                  }}
+                  className="bg-transparent text-sm text-slate-700 focus:outline-none"
+                >
+                  <option value="all">Tüm Ekip</option>
+                  {staff.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-amber-700">{stats.hazir}</p>
-                <p className="text-xs text-amber-600">Hazır</p>
-              </div>
-            </div>
-            
-            {/* Tamamlandı - Green/Emerald */}
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <div className="w-10 h-10 flex items-center justify-center bg-emerald-100 rounded-lg">
-                <CheckCircle2 size={20} className="text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-emerald-700">{stats.tamamlandi}</p>
-                <p className="text-xs text-emerald-600">Tamamlandı</p>
-              </div>
-            </div>
-            
-            {/* Acil - Red/Rose */}
-            <div className={`flex items-center gap-3 p-4 rounded-xl border ${stats.urgent > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
-              <div className={`w-10 h-10 flex items-center justify-center rounded-lg ${stats.urgent > 0 ? 'bg-rose-100' : 'bg-slate-100'}`}>
-                <AlertTriangle size={20} className={stats.urgent > 0 ? 'text-rose-600' : 'text-slate-400'} />
-              </div>
-              <div>
-                <p className={`text-2xl font-bold ${stats.urgent > 0 ? 'text-rose-700' : 'text-slate-400'}`}>{stats.urgent}</p>
-                <p className={`text-xs ${stats.urgent > 0 ? 'text-rose-600' : 'text-slate-400'}`}>Acil Görev</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Staff Task Lists */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-4 max-w-5xl mx-auto">
-            {selectedStaff === 'all' ? (
-              // Show all staff members
-              STAFF_MEMBERS.map(staff => (
-                <StaffCard 
-                  key={staff.id} 
-                  staff={staff} 
-                  tasks={assignmentsByStaff[staff.id] || []} 
-                />
-              ))
-            ) : (
-              // Show only selected staff
-              <StaffCard 
-                staff={STAFF_MEMBERS.find(s => s.id === selectedStaff)!} 
-                tasks={assignmentsByStaff[selectedStaff] || []} 
-              />
             )}
           </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-3 p-4 mb-6 bg-rose-50 text-rose-700 rounded-lg">
+              <AlertTriangle size={20} />
+              <span>{error}</span>
+              <button onClick={fetchTasks} className="ml-auto text-sm underline">Tekrar Dene</button>
+            </div>
+          )}
+
+          {/* Loading */}
+          {loading ? (
+            <div className="flex items-center justify-center py-24">
+              <div className="text-center">
+                <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
+                <p className="text-slate-500">Görevler yükleniyor...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto space-y-4">
+              {/* Empty State */}
+              {Object.keys(tasksByStaff).length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                  <CheckSquare size={48} className="mx-auto text-slate-300 mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-700 mb-2">Henüz görev yok</h3>
+                  <p className="text-sm text-slate-500">
+                    {isAdmin 
+                      ? 'Müşteri planlamasından görev ekleyebilirsiniz' 
+                      : 'Size atanmış görev bulunmuyor'}
+                  </p>
+                </div>
+              ) : (
+                // Staff Cards
+                Object.values(tasksByStaff).map(({ staff: staffInfo, tasks: staffTasks }) => (
+                  <StaffCard key={staffInfo.id} staffInfo={staffInfo} staffTasks={staffTasks} />
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

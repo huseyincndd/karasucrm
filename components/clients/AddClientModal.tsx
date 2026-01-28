@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { PackageType, PACKAGE_LABELS } from '@/types';
-import { X, Upload } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -57,16 +57,13 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onAdd 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Logo Preview */}
           <div className="flex justify-center">
-            <div className="w-20 h-20 bg-slate-100 rounded-xl flex items-center justify-center border-2 border-dashed border-slate-300">
+            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
               {name ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img 
-                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=fff&size=80`}
-                  alt="Logo preview"
-                  className="w-full h-full rounded-xl"
-                />
+                <span className="text-2xl font-bold text-white">
+                  {name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                </span>
               ) : (
-                <Upload size={24} className="text-slate-400" />
+                <span className="text-2xl font-bold text-white/50">?</span>
               )}
             </div>
           </div>
