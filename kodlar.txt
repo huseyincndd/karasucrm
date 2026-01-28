@@ -1,0 +1,312 @@
+app.tsx:
+import React, { useState, useMemo } from 'react';
+import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
+import Calendar from './components/Calendar';
+import RightPanel from './components/RightPanel';
+import { MOCK_TASKS } from './constants';
+import { Task, ViewMode, FilterState } from './types';
+
+const App: React.FC = () => {
+  const [viewMode, setViewMode] = useState<ViewMode>('Month');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    client: 'All',
+    platform: 'All',
+    status: 'All',
+    search: ''
+  });
+
+  const handleTaskSelect = (task: Task) => {
+    setSelectedTask(task);
+  };
+
+  const handleClosePanel = () => {
+    setSelectedTask(null);
+  };
+
+  // Filter Logic
+  const filteredTasks = useMemo(() => {
+    return MOCK_TASKS.filter(task => {
+      if (filters.client !== 'All' && task.clientName !== filters.client) return false;
+      if (filters.platform !== 'All' && task.platform !== filters.platform) return false;
+      if (filters.status !== 'All' && task.status !== filters.status) return false;
+      if (filters.search && !task.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      return true;
+    });
+  }, [filters]);
+
+  // Extract unique clients for the filter dropdown
+  const clients = useMemo(() => Array.from(new Set(MOCK_TASKS.map(t => t.clientName))), []);
+
+  return (
+    <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
+      {/* 1. Left Sidebar (Fixed) */}
+      <Sidebar />
+
+      <div className="flex-1 flex flex-col min-w-0 bg-white">
+        {/* 2. Top Bar (Filters) */}
+        <TopBar 
+          viewMode={viewMode} 
+          setViewMode={setViewMode} 
+          filters={filters}
+          setFilters={setFilters}
+          clients={clients}
+        />
+
+        {/* 3. Main Split View Area */}
+        <div className="flex-1 flex overflow-hidden relative">
+          
+          {/* Calendar Container: Resizes when panel opens */}
+          <div 
+            className={`flex flex-col transition-all duration-300 ease-in-out ${
+              selectedTask ? 'w-[65%] xl:w-[70%]' : 'w-full'
+            }`}
+          >
+            <Calendar 
+              tasks={filteredTasks} 
+              onSelectTask={handleTaskSelect}
+              selectedTaskId={selectedTask?.id}
+            />
+          </div>
+
+          {/* 4. Right Detail Panel */}
+          {selectedTask && (
+            <div className="w-[35%] xl:w-[30%] h-full border-l border-slate-200 bg-white absolute right-0 top-0 shadow-2xl z-20 animate-slide-in-right">
+                <RightPanel task={selectedTask} onClose={handleClosePanel} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+constants.ts:
+import { Platform, Status, Task, User } from './types';
+
+export const USERS: User[] = [
+  { id: 'u1', name: 'Alex Rivera', role: 'Creative Director', avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026024d' },
+  { id: 'u2', name: 'Sarah Chen', role: 'Social Manager', avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' },
+];
+
+// 15 Major Agency Clients
+const CLIENTS = [
+  'Nike', 'BurgerKing', 'Sephora', 'Bosch', 'Hilton', 
+  'Starbucks', 'Zara', 'Apple', 'Tesla', 'RedBull', 
+  'Sony', 'Lego', 'Pepsi', 'IKEA', 'Disney'
+];
+
+const TITLES = [
+  'Viral Challenge', 'Product Teaser', 'Testimonial', 
+  'BTS Footage', 'Weekly Recap', 'Meme', 'Flash Sale',
+  'Collab', 'Edu Carousel', 'Spotlight', 'Q&A Session',
+  'Giveaway', 'Employee Takeover', 'Trend Hop', 'Launch Event'
+];
+
+const generateMockTasks = (): Task[] => {
+  const tasks: Task[] = [];
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // HEAVY TRAFFIC: Generate ~10-15 tasks PER DAY
+  // Total ~350-450 tasks
+  for (let day = 1; day <= daysInMonth; day++) {
+    // Randomize number of tasks for this specific day (between 8 and 14)
+    const tasksForDay = Math.floor(Math.random() * 7) + 8;
+    
+    for (let t = 0; t < tasksForDay; t++) {
+        const dateObj = new Date(year, month, day);
+        const dateStr = dateObj.toISOString().split('T')[0];
+        
+        // Use 27th as "Today" for simulation purposes (logic handled in Calendar component)
+        const isSimulatedToday = day === 27;
+        const isSimulatedTomorrow = day === 28;
+        
+        const client = CLIENTS[Math.floor(Math.random() * CLIENTS.length)];
+        const platform = Object.values(Platform)[Math.floor(Math.random() * 3)];
+        
+        // Logic for Status/File
+        let status = Status.TODO;
+        let fileUrl = null;
+        const rand = Math.random();
+
+        if (rand > 0.75) {
+            status = Status.PUBLISHED;
+            fileUrl = 'https://example.com/image.png';
+        } else if (rand > 0.5) {
+            status = Status.TODO;
+            fileUrl = 'https://example.com/image.png'; // Ready
+        } else {
+            status = Status.TODO;
+            fileUrl = null;
+        }
+
+        // Force urgent on Today/Tomorrow
+        if ((isSimulatedToday || isSimulatedTomorrow) && Math.random() > 0.6) {
+            status = Status.TODO;
+            fileUrl = null;
+        }
+
+        tasks.push({
+            id: `task-${day}-${t}`,
+            clientName: client,
+            platform: platform,
+            status: status,
+            date: dateStr,
+            title: TITLES[Math.floor(Math.random() * TITLES.length)],
+            assignees: [USERS[0]],
+            caption: `Draft caption for ${client}... #marketing`,
+            fileUrl: fileUrl,
+            comments: []
+        });
+    }
+  }
+  return tasks;
+};
+
+export const MOCK_TASKS: Task[] = generateMockTasks();
+
+
+index.html:
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SocialFlow Agency Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              brand: {
+                50: '#f0f9ff',
+                100: '#e0f2fe',
+                500: '#0ea5e9',
+                600: '#0284c7',
+                900: '#0c4a6e',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8fafc;
+      }
+      /* Custom scrollbar for high density look */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+index.tsx:
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+types.ts:
+export enum Platform {
+  REEL = 'Reel',
+  STORY = 'Story',
+  POST = 'Post'
+}
+
+export enum Status {
+  TODO = 'To Do',
+  PUBLISHED = 'Published'
+}
+
+export interface User {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+}
+
+export interface Comment {
+  id: string;
+  user: User;
+  text: string;
+  createdAt: string;
+}
+
+export interface Task {
+  id: string;
+  clientName: string;
+  clientLogo?: string;
+  platform: Platform;
+  status: Status;
+  date: string; // ISO Date string YYYY-MM-DD
+  title: string;
+  assignees: User[];
+  description?: string;
+  caption?: string;
+  fileUrl?: string | null; // Determines "Ready" state if status is TODO
+  comments: Comment[];
+}
+
+export type ViewMode = 'Month' | 'Week' | 'Day';
+
+export interface FilterState {
+  client: string;
+  platform: string;
+  status: string;
+  search: string;
+}
+
+
+
