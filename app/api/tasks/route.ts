@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Response formatı frontend'e uygun
-    const formattedTasks = tasks.map(task => ({
+    const formattedTasks = tasks.map((task: any) => ({
       id: task.id,
       title: task.title,
       contentType: task.contentType,
