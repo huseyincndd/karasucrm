@@ -53,9 +53,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // usedQuota hesapla
     const usedQuota = {
-      reels: client.tasks.filter(t => t.contentType === 'reels').length,
-      posts: client.tasks.filter(t => t.contentType === 'posts').length,
-      stories: client.tasks.filter(t => t.contentType === 'stories').length
+      reels: client.tasks.filter((t: any) => t.contentType === 'reels').length,
+      posts: client.tasks.filter((t: any) => t.contentType === 'posts').length,
+      stories: client.tasks.filter((t: any) => t.contentType === 'stories').length
     };
 
     return NextResponse.json({ 
