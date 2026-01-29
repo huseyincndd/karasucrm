@@ -64,7 +64,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         startDate: client.startDate.toISOString().split('T')[0],
         renewalDate: client.renewalDate.toISOString().split('T')[0],
         usedQuota,
-        tasks: client.tasks.map(t => ({
+        tasks: client.tasks.map((t: any) => ({
           ...t,
           date: t.date.toISOString().split('T')[0]
         }))
