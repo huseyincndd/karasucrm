@@ -120,7 +120,7 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
             const done = dayTasks.filter(t => getTaskStatus(t, realCurrentDayNum) === 'done').length;
 
             if (isPadding) {
-              return <div key={index} className="h-36 bg-slate-100/50 border-b border-r border-slate-100" />;
+              return <div key={index} className="h-24 sm:h-36 bg-slate-100/50 border-b border-r border-slate-100" />;
             }
 
             return (
@@ -128,28 +128,28 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                 key={index} 
                 onClick={() => dayObj.dateStr && onDayClick(dayObj.dateStr, dayNum)}
                 className={`
-                  h-36 border-b border-r border-slate-200 p-3 flex flex-col cursor-pointer
+                  h-24 sm:h-36 border-b border-r border-slate-200 p-1.5 sm:p-3 flex flex-col cursor-pointer
                   transition-all duration-200 group
                   ${isPast ? 'bg-slate-50 opacity-50 hover:opacity-100' : 'bg-white hover:bg-slate-50'}
                   ${isToday ? 'ring-2 ring-inset ring-slate-900' : ''}
                 `}
               >
                 {/* Date */}
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-1 sm:mb-3">
                   <span className={`
-                    text-sm font-semibold
-                    ${isToday ? 'bg-slate-900 text-white w-7 h-7 rounded-full flex items-center justify-center' : 'text-slate-700'}
+                    text-xs sm:text-sm font-semibold
+                    ${isToday ? 'bg-slate-900 text-white w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center' : 'text-slate-700'}
                   `}>
                     {dayObj.dayNum}
                   </span>
                   {isToday && (
-                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Bugün</span>
+                    <span className="hidden sm:inline text-[10px] font-medium text-slate-500 uppercase tracking-wide">Bugün</span>
                   )}
                 </div>
 
-                {/* Platform Counts */}
+                {/* Platform Counts - Desktop */}
                 {dayTasks.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mb-2">
+                  <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mb-2">
                     {reels > 0 && (
                       <span className="flex items-center gap-1">
                         <Video size={11} className="text-slate-400" />
@@ -159,7 +159,7 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                     {posts > 0 && (
                       <span className="flex items-center gap-1">
                         <ImageIcon size={11} className="text-slate-400" />
-                        {posts} Post
+                        {posts} Gönderi
                       </span>
                     )}
                     {stories > 0 && (
@@ -170,14 +170,23 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                     )}
                   </div>
                 )}
-
-                {/* Status Indicators */}
+                
+                {/* Platform - Mobile Dot/Icon Only */}
                 {dayTasks.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] mt-auto">
+                   <div className="flex sm:hidden items-center gap-1 mb-1">
+                      {reels > 0 && <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
+                      {posts > 0 && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+                      {stories > 0 && <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />}
+                   </div>
+                )}
+
+                {/* Status Indicators - Desktop */}
+                {dayTasks.length > 0 && (
+                  <div className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] mt-auto">
                     {waiting > 0 && (
                       <span className="flex items-center gap-1 text-slate-400">
                         <span className="w-2 h-2 rounded-full bg-slate-300" />
-                        {waiting} Bekliyor
+                        {waiting} Beklemede
                       </span>
                     )}
                     {urgent > 0 && (
@@ -200,6 +209,16 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                     )}
                   </div>
                 )}
+                
+                {/* Status Indicators - Mobile */}
+                {dayTasks.length > 0 && (
+                  <div className="flex sm:hidden flex-wrap gap-1 mt-auto">
+                     {waiting > 0 && <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                     {urgent > 0 && <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
+                     {ready > 0 && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+                     {done > 0 && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                  </div>
+                )}
 
                 {/* Today Button */}
                 {isToday && (
@@ -208,10 +227,10 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                       e.stopPropagation();
                       dayObj.dateStr && onDayClick(dayObj.dateStr, dayNum);
                     }}
-                    className="mt-auto flex items-center justify-center gap-1.5 py-1.5 bg-slate-900 text-white text-[11px] font-medium rounded-md hover:bg-slate-800 transition-colors"
+                    className="mt-auto hidden sm:flex items-center justify-center gap-1.5 py-1.5 bg-slate-900 text-white text-[11px] font-medium rounded-md hover:bg-slate-800 transition-colors"
                   >
                     <CalendarDays size={12} />
-                    Ajandayı Aç
+                    Aç
                   </button>
                 )}
               </div>

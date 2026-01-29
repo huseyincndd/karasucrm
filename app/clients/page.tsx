@@ -6,7 +6,7 @@ import ClientCard from '@/components/clients/ClientCard';
 import ClientPlanner from '@/components/clients/ClientPlanner';
 import AddClientModal from '@/components/clients/AddClientModal';
 import Sidebar from '@/components/Sidebar';
-import { Plus, Users, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Users, AlertTriangle, Loader2, RefreshCw, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 // API'den gelen client verisini frontend tipine dönüştür
@@ -52,6 +52,7 @@ export default function ClientsPage() {
   
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
 
   // Müşterileri API'den yükle
   const fetchClients = useCallback(async () => {
@@ -161,15 +162,23 @@ export default function ClientsPage() {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Users size={20} className="text-slate-400" />
-              <h1 className="text-xl font-semibold text-slate-900">Müşteriler</h1>
+        <div className="h-auto md:h-16 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 py-4 md:py-0 gap-4 md:gap-0 flex-shrink-0">
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              >
+                <Menu size={24} />
+              </button>
+              <div className="flex items-center gap-2">
+                <Users size={20} className="text-slate-400" />
+                <h1 className="text-xl font-semibold text-slate-900">Müşteriler</h1>
+              </div>
             </div>
             <span className="text-sm text-slate-400">
               {clients.length} müşteri

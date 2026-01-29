@@ -263,22 +263,22 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
       className={`fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
       onClick={attemptClose}
     >
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="flex min-h-full items-center justify-center p-2 sm:p-4">
         <div 
-          className={`relative w-full max-w-6xl transform overflow-visible rounded-2xl bg-white shadow-2xl transition-all duration-200 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+          className={`relative w-full max-w-6xl transform overflow-visible rounded-xl sm:rounded-2xl bg-white shadow-2xl transition-all duration-200 ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
           onClick={e => e.stopPropagation()}
         >
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 rounded-t-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-100 rounded-t-xl sm:rounded-t-2xl gap-4 sm:gap-0">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               {dayNum} {currentMonthName}
               <span className="text-lg font-normal text-slate-400">Programı</span>
             </h2>
-            <p className="text-slate-500 mt-1">Bu tarih için planlanan içerikler</p>
+            <p className="text-slate-500 mt-1 text-sm sm:text-base">Bu tarih için planlanan içerikler</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between sm:justify-end gap-3">
             {hasChanges && (
               <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-sm font-medium animate-pulse">
                 <AlertTriangle size={14} />
@@ -295,7 +295,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
         </div>
 
         {/* Content */}
-        <div className="p-8 min-h-[400px]">
+        <div className="p-4 sm:p-8 min-h-[300px] sm:min-h-[400px]">
           {localTasks.length > 0 ? (
             <div className="space-y-4">
               {localTasks.map((task) => {
@@ -310,9 +310,9 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                     key={task.id} 
                     className={`group bg-white rounded-xl border-2 p-4 hover:shadow-lg transition-all duration-200 ${modifiedTaskIds.has(task.id) ? 'border-indigo-200 bg-indigo-50/10' : 'border-slate-100'}`}
                   >
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6">
                       {/* Left: Platform & Client */}
-                      <div className="flex items-center gap-4 min-w-[200px]">
+                      <div className="flex items-center gap-4 w-full md:w-auto md:min-w-[200px]">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${platformColorClass}`}>
                           <PlatformIcon size={24} />
                         </div>
@@ -330,12 +330,12 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                       </div>
 
                       {/* Middle: Controls */}
-                      <div className="flex-1 flex items-center gap-3">
+                      <div className="flex-1 w-full flex flex-col sm:flex-row items-start sm:items-center gap-3">
                         {/* 1. Status Dropdown */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                           <button
                             onClick={() => setActiveDropdown(activeDropdown?.id === task.id && activeDropdown?.type === 'status' ? null : { id: task.id, type: 'status' })}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors min-w-[140px]
+                            className={`w-full sm:w-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors min-w-0 sm:min-w-[140px]
                               ${config.bg} ${config.text} border-transparent hover:border-current`}
                           >
                             <span className={`w-2 h-2 rounded-full ${config.dot}`} />
@@ -360,7 +360,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                         </div>
 
                         {/* 2. Assignee Dropdown */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                           {!isAdmin ? (
                             // Non-admin view (read-only)
                             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed min-w-[160px]">
@@ -378,7 +378,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                             <>
                               <button
                                 onClick={() => setActiveDropdown(activeDropdown?.id === task.id && activeDropdown?.type === 'assignee' ? null : { id: task.id, type: 'assignee' })}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors min-w-[160px]"
+                                className="w-full sm:w-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors min-w-0 sm:min-w-[160px]"
                               >
                                 {assignee?.avatar ? (
                                   // eslint-disable-next-line @next/next/no-img-element
@@ -433,7 +433,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                             <>
                               <button
                                 onClick={() => setActiveDropdown(activeDropdown?.id === task.id && activeDropdown?.type === 'date' ? null : { id: task.id, type: 'date' })}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors"
+                                className="w-full sm:w-auto flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors"
                               >
                                 <Calendar size={14} className="text-slate-500" />
                                 <span className="text-sm text-slate-700">
@@ -480,7 +480,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between rounded-b-2xl">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0 rounded-b-xl sm:rounded-b-2xl">
           <div className="text-sm text-slate-500">
             {localTasks.length} içerik planlandı
           </div>

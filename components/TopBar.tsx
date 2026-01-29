@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronDown, Filter, Calendar as CalendarIcon, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, Filter, Calendar as CalendarIcon, Search, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { ViewMode, FilterState, Platform, Status } from '@/types';
 
 interface TopBarProps {
@@ -12,11 +12,12 @@ interface TopBarProps {
   clients: string[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
+  onMenuClick?: () => void;
 }
 
 const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
-const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilters, clients, currentDate, onDateChange }) => {
+const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilters, clients, currentDate, onDateChange, onMenuClick }) => {
   
   const handleFilterChange = (key: keyof FilterState, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -38,8 +39,16 @@ const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilt
     <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 z-10 shadow-sm">
       {/* Left: Filters */}
       <div className="flex items-center gap-4">
+        {onMenuClick && (
+          <button 
+            onClick={onMenuClick}
+            className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
+          >
+            <Menu size={24} />
+          </button>
+        )}
         <div className="flex items-center gap-3">
-          <div className="text-xl font-bold text-slate-800 tracking-tight">Calendar</div>
+          <div className="text-xl font-bold text-slate-800 tracking-tight hidden sm:block">Calendar</div>
           <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
             <button 
               onClick={handlePrevMonth}

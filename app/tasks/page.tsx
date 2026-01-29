@@ -19,7 +19,8 @@ import {
   Send,
   Loader2,
   RefreshCw,
-  Check
+  Check,
+  Menu // Added Menu icon for mobile toggle
 } from 'lucide-react';
 import { 
   TaskStatus,
@@ -138,6 +139,7 @@ export default function TasksPage() {
   
   const [selectedStaff, setSelectedStaff] = useState<string | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | 'all'>('all');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
 
   // Fetch tasks from API
   const fetchTasks = useCallback(async () => {
@@ -314,7 +316,7 @@ export default function TasksPage() {
                 {staffInfo.name.charAt(0)}
               </div>
             )}
-            <div className="text-left">
+            <div className="text-left w-full sm:w-auto">
               <h3 className="font-semibold text-slate-900">{staffInfo.name}</h3>
               <p className="text-xs text-slate-500">
                 {staffInfo.role} {staffInfo.department ? `• ${DEPARTMENT_LABELS[staffInfo.department as keyof typeof DEPARTMENT_LABELS] || staffInfo.department}` : ''}
@@ -322,9 +324,9 @@ export default function TasksPage() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mt-2 sm:mt-0 ml-auto sm:ml-0">
             {/* Task Stats */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {paylasimCount > 0 && (
                 <span className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full animate-pulse">
                   <Send size={12} />
@@ -373,7 +375,7 @@ export default function TasksPage() {
                   return (
                     <div 
                       key={task.id}
-                      className={`flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors last:rounded-b-xl ${isUrgent ? 'bg-rose-50/50' : ''} ${shouldPublish ? 'bg-indigo-50/50' : ''}`}
+                      className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 hover:bg-slate-50 transition-colors last:rounded-b-xl ${isUrgent ? 'bg-rose-50/50' : ''} ${shouldPublish ? 'bg-indigo-50/50' : ''}`}
                     >
                       {/* Client Logo */}
                       {task.clientLogo ? (
@@ -381,7 +383,7 @@ export default function TasksPage() {
                         <img 
                           src={task.clientLogo} 
                           alt={task.clientName}
-                          className="w-10 h-10 rounded-lg shadow-sm object-cover"
+                          className="w-10 h-10 rounded-lg shadow-sm object-cover flex-shrink-0"
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
@@ -390,8 +392,8 @@ export default function TasksPage() {
                       )}
                       
                       {/* Task Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-slate-900 truncate">{task.clientName}</span>
                           {shouldPublish && (
                             <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-600 text-xs font-medium rounded animate-pulse">
@@ -444,7 +446,7 @@ export default function TasksPage() {
                               className="fixed inset-0 z-10" 
                               onClick={() => setActiveDropdownId(null)} 
                             />
-                            <div className={`absolute right-0 w-36 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-20 animate-in fade-in zoom-in duration-100 ${index >= staffTasks.length - 2 ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'}`}>
+                            <div className={`absolute left-0 sm:left-auto sm:right-0 w-36 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in duration-100 ${index >= staffTasks.length - 2 ? 'bottom-full mb-1 origin-bottom-left sm:origin-bottom-right' : 'top-full mt-1 origin-top-left sm:origin-top-right'}`}>
                               {(['beklemede', 'hazir', 'tamamlandi'] as TaskStatus[]).map((status) => {
                                 const optConfig = getStatusConfig(status);
                                 const OptIcon = optConfig.icon;
@@ -500,17 +502,25 @@ export default function TasksPage() {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <CheckSquare size={20} className="text-slate-400" />
-              <h1 className="text-xl font-semibold text-slate-900">
-                {isAdmin ? 'Görevler' : 'Görevlerim'}
-              </h1>
+        <div className="h-auto md:h-16 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 py-4 md:py-0 gap-4 md:gap-0 flex-shrink-0 z-10">
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              >
+                <Menu size={24} />
+              </button>
+              <div className="flex items-center gap-2">
+                <CheckSquare size={20} className="text-slate-400" />
+                <h1 className="text-xl font-semibold text-slate-900">
+                  {isAdmin ? 'Görevler' : 'Görevlerim'}
+                </h1>
+              </div>
             </div>
             <span className="text-sm text-slate-400">
               {filteredTasks.length} görev
@@ -542,7 +552,7 @@ export default function TasksPage() {
           </div>
           
           {/* Filters */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
             {/* Status Filter (everyone can use) */}
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
               <Filter size={14} className="text-slate-400" />
@@ -582,7 +592,7 @@ export default function TasksPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {/* Error */}
           {error && (
             <div className="flex items-center gap-3 p-4 mb-6 bg-rose-50 text-rose-700 rounded-lg">

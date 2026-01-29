@@ -17,7 +17,8 @@ import {
   User,
   Video,
   Image as ImageIcon,
-  Circle
+  Circle,
+  Menu
 } from 'lucide-react';
 
 type TaskStatus = 'beklemede' | 'hazir' | 'tamamlandi';
@@ -50,6 +51,7 @@ const ArchivePage: React.FC = () => {
   
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -133,17 +135,25 @@ const ArchivePage: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-100">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <main className="flex-1 overflow-auto bg-slate-100">
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <Archive size={28} className="text-indigo-600" />
-                Arşiv & Geçmiş
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">Geçmiş dönemlere ait görev kayıtları</p>
+        <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-6 sticky top-0 z-10 w-full">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-0">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              >
+                <Menu size={24} />
+              </button>
+              <div>
+                <h1 className="text-xl md:text-2xl font-semibold text-slate-900 flex items-center gap-2">
+                  <Archive size={28} className="text-indigo-600" />
+                  Arşiv & Geçmiş
+                </h1>
+                <p className="text-sm text-slate-500 mt-1">Geçmiş dönemlere ait görev kayıtları</p>
+              </div>
             </div>
             
             <div className="flex items-center gap-4">

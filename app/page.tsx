@@ -58,6 +58,7 @@ export default function Home() {
   
   const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const [filters, setFilters] = useState<FilterState>({
     client: 'All',
     platform: 'All',
@@ -161,7 +162,7 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
       {/* 1. Left Sidebar */}
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 bg-white">
         {/* 2. Top Bar (Filters) */}
@@ -173,6 +174,7 @@ export default function Home() {
           clients={clients}
           currentDate={currentDate}
           onDateChange={setCurrentDate}
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
 
         {/* 3. Calendar Grid */}

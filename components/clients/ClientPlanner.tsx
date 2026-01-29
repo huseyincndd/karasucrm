@@ -60,7 +60,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const { user } = useAuth();
   const isAdmin = user?.isAdmin ?? false;
   
-  const [selectedMonth, setSelectedMonth] = useState(0); // Default to current month later
+  const [currentPeriodStart, setCurrentPeriodStart] = useState<Date>(new Date());
   const [activeType, setActiveType] = useState<ContentType | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<ApiUser | null>(null);
   
@@ -81,13 +81,28 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const [saving, setSaving] = useState(false);
 
   const quota = PACKAGE_QUOTAS[client.package];
-  const year = 2026; // TODO: Make dynamic
-  const month = selectedMonth;
 
-  // Initialize selected month to current month
+  // Initialize period based on client start date and today
   useEffect(() => {
-    setSelectedMonth(new Date().getMonth());
-  }, []);
+    if (client.startDate) {
+      const startDay = new Date(client.startDate).getDate();
+      const today = new Date();
+      let initDate = new Date(today.getFullYear(), today.getMonth(), startDay);
+      
+      // If today is before the start day in this month, go back one month
+      if (initDate > today) {
+        initDate.setMonth(initDate.getMonth() - 1);
+      }
+      setCurrentPeriodStart(initDate);
+    }
+  }, [client.startDate]);
+
+  // Calculate Period End
+  const periodEnd = useMemo(() => {
+    const end = new Date(currentPeriodStart);
+    end.setMonth(end.getMonth() + 1);
+    return end;
+  }, [currentPeriodStart]);
 
   // Fetch Staff
   const fetchStaff = useCallback(async () => {
@@ -109,30 +124,19 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const fetchTasks = useCallback(async () => {
     try {
       setLoadingTasks(true);
-      // We need an endpoint to filter tasks by client. 
-      // Assuming GET /api/tasks returns all tasks for admin, we can filter client-side or add query param
-      // For performance, query param is better. Let's try sending a dummy param or filter client side if not supported.
-      // Based on previous code, GET /api/tasks supports filtering. 
-      // Actually /api/clients usually returns plannedDates but not full task objects with assignee.
-      // We'll use /api/tasks and filter.
-      
-      const res = await fetch('/api/tasks'); // Fetches all tasks (admin) or user tasks
+      const res = await fetch('/api/tasks'); 
       if (res.ok) {
         const data = await res.json();
-        // Filter for this client
         const clientTasks = data.tasks.filter((t: any) => t.clientId === client.id);
-        
-        // Map to expected structure if needed
         const mapped: ApiTask[] = clientTasks.map((t: any) => ({
           id: t.id,
           title: t.title,
-          contentType: t.contentType || t.rawContentType || 'posts', // Fallback
+          contentType: t.contentType || t.rawContentType || 'posts',
           date: t.date,
           status: t.status,
           assignedTo: t.assignedTo,
           clientId: t.clientId
         }));
-        
         setExistingTasks(mapped);
       }
     } catch (error) {
@@ -161,12 +165,9 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
 
   // Combined View of Tasks (Existing - Deleted + Pending)
   const effectiveTasks = useMemo(() => {
-    // Start with existing tasks that are NOT deleted
     const current = existingTasks.filter(t => !deletedTaskIds.includes(t.id));
-    
-    // Map pending tasks to compatible structure (mock ID)
     const pending: ApiTask[] = pendingTasks.map(p => ({
-      id: p.tempId, // Use tempId
+      id: p.tempId,
       title: 'New Task',
       contentType: p.contentType,
       date: p.date,
@@ -174,56 +175,52 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
       assignedTo: p.staffId,
       clientId: client.id
     }));
-
     return [...current, ...pending];
   }, [existingTasks, deletedTaskIds, pendingTasks, client.id]);
 
   const hasChanges = pendingTasks.length > 0 || deletedTaskIds.length > 0;
 
-  // Calculate remaining quota
+  // Quota for Period
   const getRemaining = (type: ContentType) => {
     const total = quota[type];
     const used = effectiveTasks.filter(t => {
       const taskDate = new Date(t.date);
-      return taskDate.getMonth() === month && t.contentType === type;
+      taskDate.setHours(0,0,0,0);
+      const pStart = new Date(currentPeriodStart); pStart.setHours(0,0,0,0);
+      const pEnd = new Date(periodEnd); pEnd.setHours(0,0,0,0);
+      return taskDate >= pStart && taskDate < pEnd && t.contentType === type;
     }).length;
     return total - used;
   };
 
   const generateDays = () => {
-    const firstDay = new Date(year, month, 1);
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const startingDayIndex = (firstDay.getDay() + 6) % 7;
-
-    const days: (number | null)[] = [];
-    for (let i = 0; i < startingDayIndex; i++) days.push(null);
-    for (let i = 1; i <= daysInMonth; i++) days.push(i);
+    const days: (Date | null)[] = [];
+    const startDayIndex = (currentPeriodStart.getDay() + 6) % 7;
+    for (let i = 0; i < startDayIndex; i++) days.push(null);
+    const curr = new Date(currentPeriodStart);
+    const end = new Date(periodEnd);
+    while (curr < end) {
+      days.push(new Date(curr));
+      curr.setDate(curr.getDate() + 1);
+    }
     return days;
   };
   const days = generateDays();
 
   // Handle Date Click
-  const handleDateClick = (day: number) => {
+  const handleDateClick = (dateObj: Date) => {
     if (!activeType || !selectedStaff) return;
-    
-    // Format date as YYYY-MM-DD
-    // Using local time to ensure correct date string
-    const d = new Date(year, month, day);
-    const yr = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
+    const yr = dateObj.getFullYear();
+    const mo = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const da = String(dateObj.getDate()).padStart(2, '0');
     const dateStr = `${yr}-${mo}-${da}`;
 
-    // Check if there is already a task of this type on this date
-    // Check pending first
     const pendingIndex = pendingTasks.findIndex(p => p.date === dateStr && p.contentType === activeType);
     if (pendingIndex >= 0) {
-      // It's a pending task -> Remove it (Toggle off)
       setPendingTasks(prev => prev.filter((_, i) => i !== pendingIndex));
       return;
     }
 
-    // Check existing
     const existing = existingTasks.find(t => 
       t.date === dateStr && 
       t.contentType === activeType && 
@@ -231,13 +228,11 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
     );
 
     if (existing) {
-      // It's an existing task -> Mark for deletion
       setDeletedTaskIds(prev => [...prev, existing.id]);
       return;
     }
 
-    // New assignment
-    if (getRemaining(activeType) <= 0) return; // Quota check
+    if (getRemaining(activeType) <= 0) return;
 
     setPendingTasks(prev => [...prev, {
       date: dateStr,
@@ -250,13 +245,9 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      // 1. Process Deletions
       const deletePromises = deletedTaskIds.map(id => 
         fetch(`/api/tasks/${id}`, { method: 'DELETE' })
       );
-      
-      // 2. Process Additions
       const addPromises = pendingTasks.map(task => 
         fetch('/api/tasks', {
           method: 'POST',
@@ -271,21 +262,11 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
           })
         })
       );
-
       await Promise.all([...deletePromises, ...addPromises]);
-      
-      // Refresh state
       await fetchTasks();
       setPendingTasks([]);
       setDeletedTaskIds([]);
-      
-      // Notify Parent to update client card (dates might have changed)
-      // Since we don't return the full client object, parent might need to refetch or we ignore until next load.
-      // But parent expects updated client. Ideally we should refetch client too.
-      // For now, we simulate update or just callback.
-      const fakeNewDates = { ...client.plannedDates }; // Simple simulation not perfect but okay
-      onUpdate({ ...client }); // Just trigger update
-
+      onUpdate({ ...client });
     } catch (err) {
       alert('Kaydedilirken bir hata oluştu.');
       console.error(err);
@@ -294,17 +275,17 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
     }
   };
 
+  const handleClose = () => {
+    setIsVisible(false);
+    setTimeout(onClose, 200);
+  };
+
   const attemptClose = () => {
     if (hasChanges) {
       setConfirmClose(true);
     } else {
       handleClose();
     }
-  };
-
-  const handleClose = () => {
-    setIsVisible(false);
-    setTimeout(onClose, 200);
   };
 
   const handleContentTypeChange = (type: ContentType) => {
@@ -331,6 +312,20 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
     }
   };
 
+  const prevPeriod = () => {
+    const next = new Date(currentPeriodStart);
+    next.setMonth(next.getMonth() - 1);
+    setCurrentPeriodStart(next);
+  };
+
+  const nextPeriod = () => {
+    const next = new Date(currentPeriodStart);
+    next.setMonth(next.getMonth() + 1);
+    setCurrentPeriodStart(next);
+  };
+  
+  // ...
+
   return (
     <div 
       className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
@@ -343,7 +338,8 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
-            {client.logo ? (
+             {/* ... Logo/Name ... */}
+             {client.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={client.logo} alt={client.name} className="w-10 h-10 rounded-lg object-cover" />
             ) : (
@@ -357,6 +353,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* ... Actions ... */}
             {isAdmin && onDelete && (
               <button 
                 onClick={() => onDelete(client.id)}
@@ -374,29 +371,32 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
 
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1">
-          {/* Month Selector */}
+          {/* Period Selector */}
           <div className="flex items-center justify-center gap-4 py-4 bg-slate-50 border-b border-slate-100">
             <button 
-              onClick={() => setSelectedMonth(Math.max(0, selectedMonth - 1))}
-              disabled={selectedMonth === 0}
-              className="p-2 text-slate-400 hover:text-slate-600 disabled:opacity-30"
+              onClick={prevPeriod}
+              className="p-2 text-slate-400 hover:text-slate-600"
             >
               <ChevronLeft size={20} />
             </button>
-            <span className="text-lg font-semibold text-slate-900 min-w-[120px] text-center">
-              {MONTH_NAMES[month]} {year}
-            </span>
+            <div className="text-center">
+              <span className="block text-lg font-semibold text-slate-900">
+                {currentPeriodStart.getDate()} {MONTH_NAMES[currentPeriodStart.getMonth()]} - {periodEnd.getDate()} {MONTH_NAMES[periodEnd.getMonth()]}
+              </span>
+              <span className="text-xs text-slate-500 font-medium">
+                {currentPeriodStart.getFullYear()} Dönemi
+              </span>
+            </div>
             <button 
-              onClick={() => setSelectedMonth(Math.min(11, selectedMonth + 1))}
-              disabled={selectedMonth === 11}
-              className="p-2 text-slate-400 hover:text-slate-600 disabled:opacity-30"
+              onClick={nextPeriod}
+              className="p-2 text-slate-400 hover:text-slate-600"
             >
               <ChevronRight size={20} />
             </button>
           </div>
 
-          {/* Resource Bar */}
-          <div className="flex items-center justify-center gap-3 p-4 border-b border-slate-100">
+          {/* ... Resource Bar ... */}
+           <div className="flex items-center justify-center gap-3 p-4 border-b border-slate-100">
             {(['reels', 'posts', 'stories'] as ContentType[]).map(type => {
               const config = getTypeConfig(type);
               const Icon = config.icon;
@@ -431,7 +431,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             })}
           </div>
 
-          {/* Staff Selector */}
+          {/* ... Staff Selector ... */}
           {activeType && (
             <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
               <div className="flex items-center gap-3">
@@ -516,7 +516,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
           )}
 
           {/* Instructions */}
-          {activeType && (
+           {activeType && (
             <div className="px-4 py-2 bg-slate-50 text-center text-xs text-slate-500">
               {selectedStaff ? (
                 <>
@@ -530,7 +530,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             </div>
           )}
 
-          {/* Mini Calendar */}
+          {/* Calendar Grid */}
           <div className="p-4">
             <div className="grid grid-cols-7 mb-2">
               {WEEKDAYS.map(day => (
@@ -541,19 +541,18 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             </div>
 
             <div className="grid grid-cols-7 gap-1">
-              {days.map((day, index) => {
-                if (day === null) {
-                  return <div key={index} className="aspect-square" />;
+              {days.map((dayObj, index) => {
+                if (dayObj === null) {
+                  return <div key={index} className="aspect-square bg-slate-50/50 rounded-lg" />;
                 }
 
-                // Get formats from YYYY-MM-DD
-                const d = new Date(year, month, day);
-                const yr = d.getFullYear();
-                const mo = String(d.getMonth() + 1).padStart(2, '0');
-                const da = String(d.getDate()).padStart(2, '0');
+                // Get date strings
+                const yr = dayObj.getFullYear();
+                const mo = String(dayObj.getMonth() + 1).padStart(2, '0');
+                const da = String(dayObj.getDate()).padStart(2, '0');
                 const dateStr = `${yr}-${mo}-${da}`;
 
-                // Check content for this day
+                // Check content
                 const dayTasks = effectiveTasks.filter(t => t.date === dateStr);
                 const hasReels = dayTasks.some(t => t.contentType === 'reels');
                 const hasPosts = dayTasks.some(t => t.contentType === 'posts');
@@ -568,7 +567,6 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
                 let bgColor = 'bg-white hover:bg-slate-50';
                 let borderColor = 'border-slate-200';
                 
-                // Active Type specific styling
                 if (activeType && assignedTask) {
                    if (activeType === 'reels') {
                      bgColor = 'bg-rose-500';
@@ -587,7 +585,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
                 return (
                   <button
                     key={index}
-                    onClick={() => handleDateClick(day)}
+                    onClick={() => handleDateClick(dayObj)}
                     disabled={isDisabled}
                     className={`
                       aspect-square rounded-lg border-2 flex flex-col items-center justify-center
@@ -598,7 +596,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
                       ${isDisabled && activeType ? 'opacity-50' : ''}
                     `}
                   >
-                    <span className="text-sm font-medium">{day}</span>
+                    <span className="text-sm font-medium">{dayObj.getDate()}</span>
                     
                     {dayTasks.length > 0 && !activeType && (
                       <div className="flex gap-0.5 mt-0.5">
@@ -634,6 +632,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             </div>
           </div>
         </div>
+
 
         {/* Footer Actions */}
         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
