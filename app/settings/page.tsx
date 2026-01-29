@@ -54,9 +54,9 @@ interface EditForm {
 }
 
 const DEPARTMENT_LABELS: Record<DepartmentType, string> = {
-  video: 'Video Ekibi',
-  design: 'Tasarım Ekibi',
-  content: 'İçerik Ekibi'
+  video: 'Reels Yapımcıları',
+  design: 'Story Yapımcıları',
+  content: 'Gönderi Yapımcıları'
 };
 
 const ROLE_SUGGESTIONS: Record<DepartmentType, string[]> = {
@@ -418,9 +418,9 @@ const SettingsPage: React.FC = () => {
                                   onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
                                   className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 >
-                                  <option value="video">Video Ekibi</option>
-                                  <option value="design">Tasarım Ekibi</option>
-                                  <option value="content">İçerik Ekibi</option>
+                                  <option value="video">Reels Yapımcıları</option>
+                                  <option value="design">Story Yapımcıları</option>
+                                  <option value="content">Gönderi Yapımcıları</option>
                                 </select>
                                 <div className="flex items-center gap-2">
                                   <button
@@ -598,9 +598,9 @@ const SettingsPage: React.FC = () => {
                   onChange={(e) => setNewStaffForm(prev => ({ ...prev, department: e.target.value as DepartmentType, role: '' }))}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="video">Video Ekibi</option>
-                  <option value="design">Tasarım Ekibi</option>
-                  <option value="content">İçerik Ekibi</option>
+                  <option value="video">Reels Yapımcıları</option>
+                  <option value="design">Story Yapımcıları</option>
+                  <option value="content">Gönderi Yapımcıları</option>
                 </select>
               </div>
 
