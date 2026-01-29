@@ -29,11 +29,11 @@ export async function GET(request: NextRequest) {
     });
 
     // Her client için usedQuota hesapla (task'lardan)
-    const clientsWithQuota = clients.map(client => {
+    const clientsWithQuota = clients.map((client: any) => {
       const usedQuota = {
-        reels: client.tasks.filter(t => t.contentType === 'reels').length,
-        posts: client.tasks.filter(t => t.contentType === 'posts').length,
-        stories: client.tasks.filter(t => t.contentType === 'stories').length
+        reels: client.tasks.filter((t: any) => t.contentType === 'reels').length,
+        posts: client.tasks.filter((t: any) => t.contentType === 'posts').length,
+        stories: client.tasks.filter((t: any) => t.contentType === 'stories').length
       };
 
       // Planned dates by content type
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         stories: []
       };
       
-      client.tasks.forEach(task => {
+      client.tasks.forEach((task: any) => {
         const dateStr = task.date.toISOString().split('T')[0];
         if (plannedDates[task.contentType]) {
           plannedDates[task.contentType].push(dateStr);
