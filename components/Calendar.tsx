@@ -11,8 +11,9 @@ import {
 
 interface CalendarProps {
   tasks: any[]; // Using any to accommodate the mapped type
-  onDayClick: (date: string, dayNum: number) => void;
+  onDayClick?: (date: string, dayNum: number) => void;
   currentDate: Date;
+  viewMode?: 'Month' | 'Week' | 'Day';
 }
 
 const WEEKDAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
@@ -41,7 +42,7 @@ const getTaskStatus = (task: any, todayNum: number) => {
   return 'waiting';
 };
 
-const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) => {
+const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate, viewMode = 'Month' }) => {
   const today = new Date();
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); // 0-indexed (0 = January)
@@ -50,41 +51,57 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
   const realCurrentDayNum = today.getDate();
   const isRealCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
 
-  const firstDayOfMonth = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const days: { dayNum: number | null; dateStr: string | null; isOtherMonth?: boolean }[] = [];
   
-  // getDay returns 0 for Sunday. We want Monday to be 0 for our grid (Pzt, Sal...)
-  // Sunday (0) -> 6
-  // Monday (1) -> 0
-  // ...
-  const startingDayIndex = (firstDayOfMonth.getDay() + 6) % 7;
-
-  const days: { dayNum: number | null; dateStr: string | null }[] = [];
-  
-  // Previous month padding
-  for (let i = 0; i < startingDayIndex; i++) days.push({ dayNum: null, dateStr: null });
-  
-  // Current month days
-  for (let i = 1; i <= daysInMonth; i++) {
-    // Construct ISO date string properly using local time components to avoid TZ issues
-    // Or simply:
-    const d = new Date(year, month, i);
-    const yr = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${yr}-${mo}-${da}`;
+  if (viewMode === 'Month') {
+    const firstDayOfMonth = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    days.push({ dayNum: i, dateStr: dateStr });
+    // getDay returns 0 for Sunday. We want Monday to be 0 for our grid (Pzt, Sal...)
+    const startingDayIndex = (firstDayOfMonth.getDay() + 6) % 7;
+
+    // Previous month padding
+    for (let i = 0; i < startingDayIndex; i++) days.push({ dayNum: null, dateStr: null });
+    
+    // Current month days
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(year, month, i);
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${yr}-${mo}-${da}`;
+      
+      days.push({ dayNum: i, dateStr: dateStr });
+    }
+    
+    // Next month padding
+    const remainingCells = 42 - days.length;
+    for (let i = 0; i < remainingCells; i++) days.push({ dayNum: null, dateStr: null });
+  } else if (viewMode === 'Week') {
+    // Calculate start of the week (Monday) based on currentDate
+    const currentDayIndex = (currentDate.getDay() + 6) % 7; // 0=Mon, 6=Sun
+    const startOfWeek = new Date(currentDate);
+    startOfWeek.setDate(currentDate.getDate() - currentDayIndex);
+
+    for (let i = 0; i < 7; i++) {
+       const d = new Date(startOfWeek);
+       d.setDate(startOfWeek.getDate() + i);
+       
+       const yr = d.getFullYear();
+       const mo = String(d.getMonth() + 1).padStart(2, '0');
+       const da = String(d.getDate()).padStart(2, '0');
+       const dateStr = `${yr}-${mo}-${da}`;
+       
+       days.push({ dayNum: d.getDate(), dateStr: dateStr });
+    }
   }
-  
-  // Next month padding to fill grid (42 cells usually covers all months)
-  const remainingCells = 42 - days.length;
-  for (let i = 0; i < remainingCells; i++) days.push({ dayNum: null, dateStr: null });
+
+  const isMobileWeekView = viewMode === 'Week';
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50 h-full overflow-hidden">
       {/* Weekday Header */}
-      <div className="grid grid-cols-7 bg-white border-b border-slate-200">
+      <div className={`grid grid-cols-7 bg-white border-b border-slate-200 ${isMobileWeekView ? 'hidden md:grid' : ''}`}>
         {WEEKDAYS.map((day) => (
           <div key={day} className="py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
             {day}
@@ -94,7 +111,7 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
 
       {/* Calendar Grid */}
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-7 auto-rows-fr min-h-full">
+        <div className={`grid ${isMobileWeekView ? 'grid-cols-1 md:grid-cols-7' : 'grid-cols-7'} ${isMobileWeekView ? 'auto-rows-auto' : 'auto-rows-fr'} min-h-full`}>
           {days.map((dayObj, index) => {
             const isPadding = dayObj.dayNum === null;
             const dayTasks = dayObj.dateStr ? tasks.filter(t => t.date === dayObj.dateStr) : [];
@@ -126,10 +143,11 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
             return (
               <div 
                 key={index} 
-                onClick={() => dayObj.dateStr && onDayClick(dayObj.dateStr, dayNum)}
+                onClick={() => onDayClick && dayObj.dateStr && onDayClick(dayObj.dateStr, dayNum)}
                 className={`
-                  h-24 sm:h-36 border-b border-r border-slate-200 p-1.5 sm:p-3 flex flex-col cursor-pointer
+                  border-b border-r border-slate-200 p-1.5 sm:p-3 flex flex-col ${onDayClick ? 'cursor-pointer' : 'cursor-default'}
                   transition-all duration-200 group
+                  ${isMobileWeekView ? 'min-h-[80px] h-auto' : 'h-24 sm:h-36'}
                   ${isPast ? 'bg-slate-50 opacity-50 hover:opacity-100' : 'bg-white hover:bg-slate-50'}
                   ${isToday ? 'ring-2 ring-inset ring-slate-900' : ''}
                 `}
@@ -142,14 +160,21 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                   `}>
                     {dayObj.dayNum}
                   </span>
+                  
+                  {isMobileWeekView && (
+                    <span className="md:hidden text-sm font-medium text-slate-500 ml-2 flex-1">
+                      {WEEKDAYS[index % 7]}
+                    </span>
+                  )}
+                  
                   {isToday && (
                     <span className="hidden sm:inline text-[10px] font-medium text-slate-500 uppercase tracking-wide">Bugün</span>
                   )}
                 </div>
 
-                {/* Platform Counts - Desktop */}
+                {/* Platform Counts - Desktop (Visible on mobile week view) */}
                 {dayTasks.length > 0 && (
-                  <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mb-2">
+                  <div className={`${isMobileWeekView ? 'flex' : 'hidden sm:flex'} flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mb-2`}>
                     {reels > 0 && (
                       <span className="flex items-center gap-1">
                         <Video size={11} className="text-slate-400" />
@@ -171,8 +196,8 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                   </div>
                 )}
                 
-                {/* Platform - Mobile Dot/Icon Only */}
-                {dayTasks.length > 0 && (
+                {/* Platform - Mobile Dot/Icon Only (Hidden on week view) */}
+                {dayTasks.length > 0 && !isMobileWeekView && (
                    <div className="flex sm:hidden items-center gap-1 mb-1">
                       {reels > 0 && <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
                       {posts > 0 && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
@@ -180,9 +205,9 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                    </div>
                 )}
 
-                {/* Status Indicators - Desktop */}
+                {/* Status Indicators - Desktop (Visible on mobile week view) */}
                 {dayTasks.length > 0 && (
-                  <div className="hidden sm:flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] mt-auto">
+                  <div className={`${isMobileWeekView ? 'flex' : 'hidden sm:flex'} flex-wrap items-center gap-x-2 gap-y-1 text-[10px] mt-auto`}>
                     {waiting > 0 && (
                       <span className="flex items-center gap-1 text-slate-400">
                         <span className="w-2 h-2 rounded-full bg-slate-300" />
@@ -210,24 +235,26 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, onDayClick, currentDate }) =
                   </div>
                 )}
                 
-                {/* Status Indicators - Mobile */}
-                {dayTasks.length > 0 && (
-                  <div className="flex sm:hidden flex-wrap gap-1 mt-auto">
+                {/* Status Indicators - Mobile (Hidden on week view) */}
+                {dayTasks.length > 0 && !isMobileWeekView && (
+                   <div className="flex sm:hidden flex-wrap gap-1 mt-auto">
                      {waiting > 0 && <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
                      {urgent > 0 && <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
                      {ready > 0 && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
                      {done > 0 && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                  </div>
+                   </div>
                 )}
 
-                {/* Today Button */}
-                {isToday && (
+                {/* Today Button - Visible on mobile week view too */}
+                {isToday && onDayClick && (
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
                       dayObj.dateStr && onDayClick(dayObj.dateStr, dayNum);
                     }}
-                    className="mt-auto hidden sm:flex items-center justify-center gap-1.5 py-1.5 bg-slate-900 text-white text-[11px] font-medium rounded-md hover:bg-slate-800 transition-colors"
+                    className={`mt-auto items-center justify-center gap-1.5 py-1.5 bg-slate-900 text-white text-[11px] font-medium rounded-md hover:bg-slate-800 transition-colors
+                      ${isMobileWeekView ? 'flex w-full mt-2' : 'hidden sm:flex'}
+                    `}
                   >
                     <CalendarDays size={12} />
                     Aç

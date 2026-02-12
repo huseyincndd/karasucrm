@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, verifyAdmin } from '@/lib/auth';
 
-// GET /api/clients - Tüm müşterileri listele
+// GET /api/clients - Tüm müşterileri listele (Sadece Admin)
 export async function GET(request: NextRequest) {
-  const user = verifyAuth(request);
+  const user = verifyAdmin(request);
   
   if (!user) {
     return NextResponse.json(
-      { error: 'Oturum gerekli' },
-      { status: 401 }
+      { error: 'Bu işlem için admin yetkisi gerekli' },
+      { status: 403 }
     );
   }
 
@@ -23,7 +23,12 @@ export async function GET(request: NextRequest) {
             date: true,
             status: true
           }
-        }
+        },
+        // Sorumlu Kişilerin Bilgilerini Getir
+        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -32,8 +37,11 @@ export async function GET(request: NextRequest) {
     const clientsWithQuota = clients.map((client: any) => {
       const usedQuota = {
         reels: client.tasks.filter((t: any) => t.contentType === 'reels').length,
+        reelsCompleted: client.tasks.filter((t: any) => t.contentType === 'reels' && t.status === 'tamamlandi').length,
         posts: client.tasks.filter((t: any) => t.contentType === 'posts').length,
-        stories: client.tasks.filter((t: any) => t.contentType === 'stories').length
+        postsCompleted: client.tasks.filter((t: any) => t.contentType === 'posts' && t.status === 'tamamlandi').length,
+        stories: client.tasks.filter((t: any) => t.contentType === 'stories').length,
+        storiesCompleted: client.tasks.filter((t: any) => t.contentType === 'stories' && t.status === 'tamamlandi').length
       };
 
       // Planned dates by content type
@@ -57,8 +65,22 @@ export async function GET(request: NextRequest) {
         packageType: client.packageType,
         startDate: client.startDate.toISOString().split('T')[0],
         renewalDate: client.renewalDate.toISOString().split('T')[0],
+        
+        // Yeni Alanlar
+        reelsQuota: client.reelsQuota,
+        postsQuota: client.postsQuota,
+        storiesQuota: client.storiesQuota,
+        
+        socialUser: client.socialUser,
+        designerUser: client.designerUser,
+        reelsUser: client.reelsUser,
+        adsUser: client.adsUser,
+        adsPeriod: client.adsPeriod,
+
         usedQuota,
         plannedDates,
+        hasPortalAccess: !!(client.username && client.password),
+        portalUsername: client.username || null,
         createdAt: client.createdAt
       };
     });
@@ -83,10 +105,24 @@ export async function POST(request: NextRequest) {
       { status: 403 }
     );
   }
-
   try {
     const body = await request.json();
-    const { name, logo, packageType, startDate, renewalDate } = body;
+    const { 
+      name, 
+      logo, 
+      packageType, 
+      startDate, 
+      renewalDate,
+      socialUserId,
+      designerUserId,
+      reelsUserId,
+      adsUserId,
+      adsPeriod,
+      // Custom Quota
+      reelsQuota,
+      postsQuota,
+      storiesQuota
+    } = body;
 
     // Validasyon
     if (!name || !packageType || !startDate || !renewalDate) {
@@ -97,12 +133,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Paket tipi kontrolü
-    const validPackages = ['vitrin', 'plus', 'premium'];
+    const validPackages = ['vitrin', 'plus', 'premium', 'custom']; // 'custom' eklendi
     if (!validPackages.includes(packageType)) {
       return NextResponse.json(
-        { error: 'Geçersiz paket tipi. Geçerli değerler: vitrin, plus, premium' },
+        { error: 'Geçersiz paket tipi.' },
         { status: 400 }
       );
+    }
+    
+    // Custom Validation
+    if (packageType === 'custom') {
+      if (reelsQuota === undefined || postsQuota === undefined || storiesQuota === undefined) {
+          return NextResponse.json(
+            { error: 'Özel paket için kota bilgileri zorunludur.' },
+            { status: 400 }
+          );
+      }
     }
 
     const client = await prisma.client.create({
@@ -111,7 +157,25 @@ export async function POST(request: NextRequest) {
         logo: logo || null,
         packageType,
         startDate: new Date(startDate),
-        renewalDate: new Date(renewalDate)
+        renewalDate: new Date(renewalDate),
+        
+        // Custom Quota
+        reelsQuota: packageType === 'custom' ? Number(reelsQuota) : null,
+        postsQuota: packageType === 'custom' ? Number(postsQuota) : null,
+        storiesQuota: packageType === 'custom' ? Number(storiesQuota) : null,
+        
+        // Atamalar (Opsiyonel olabilir, yoksa null geçeriz)
+        socialUserId: socialUserId || null,
+        designerUserId: designerUserId || null,
+        reelsUserId: reelsUserId || null,
+        adsUserId: adsUserId || null,
+        adsPeriod: adsPeriod || null
+      },
+      include: {
+        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
       }
     });
 

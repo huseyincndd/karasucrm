@@ -55,9 +55,17 @@ const mapToCalendarTask = (task: ApiTask) => ({
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
+  const isClient = user?.isClient ?? false;
   
   const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Mobile check on mount
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setViewMode('Week');
+    }
+  }, []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const [filters, setFilters] = useState<FilterState>({
     client: 'All',
@@ -175,7 +183,15 @@ export default function Home() {
           currentDate={currentDate}
           onDateChange={setCurrentDate}
           onMenuClick={() => setIsSidebarOpen(true)}
+          isClient={isClient}
         />
+
+        {/* Client Banner */}
+        {isClient && (
+          <div className="px-4 md:px-6 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
+            <p className="text-xs text-indigo-600 font-medium">📅 İçerik takviminizi görüntülüyorsunuz • Detaylar için Planlarım sayfasını ziyaret edin</p>
+          </div>
+        )}
 
         {/* 3. Calendar Grid */}
         {loading ? (
@@ -196,21 +212,20 @@ export default function Home() {
         ) : (
           <Calendar 
             tasks={filteredTasks} 
-            onDayClick={handleDayClick}
+            onDayClick={isClient ? undefined : handleDayClick}
             currentDate={currentDate}
+            viewMode={viewMode}
           />
         )}
       </div>
 
-      {/* 4. Day Modal Overlay */}
-      {selectedDay && (
+      {/* 4. Day Modal Overlay - Müşteriler için gizli */}
+      {!isClient && selectedDay && (
         <DayModal 
           isOpen={true}
           onClose={handleCloseModal}
           date={selectedDay.date}
           dayNum={selectedDay.dayNum}
-          // Note: DayModal will likely perform its own fetching or we pass tasks
-          // If DayModal expects tasks prop:
           initialTasks={selectedDayTasks} 
         />
       )}

@@ -9,10 +9,12 @@ import {
   CheckSquare, 
   Settings, 
   LogOut,
-  Command,
   Shield,
   Archive,
-  X
+  X,
+  CalendarDays,
+  Building2,
+  Wallet
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -25,14 +27,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  // Tüm nav items
-  const allNavItems = [
+  const isClient = user?.isClient;
+
+  // Müşteri nav items (sadece Takvim ve Planlarım)
+  const clientNavItems = [
     { label: 'Takvim', icon: LayoutDashboard, href: '/', adminOnly: false },
-    { label: 'Müşteriler', icon: Users, href: '/clients', adminOnly: false },
-    { label: 'Görevlerim', icon: CheckSquare, href: '/tasks', adminOnly: false },
-    { label: 'Arşiv', icon: Archive, href: '/archive', adminOnly: false },
-    { label: 'Ayarlar', icon: Settings, href: '/settings', adminOnly: true }, // Sadece admin
+    { label: 'Planlarım', icon: CalendarDays, href: '/plans', adminOnly: false },
   ];
+
+  // Ekip üyeleri nav items
+  const staffNavItems = [
+    { label: 'Takvim', icon: LayoutDashboard, href: '/', adminOnly: false },
+    { label: 'Müşteriler', icon: Users, href: '/clients', adminOnly: true },
+    { label: 'Görevlerim', icon: CheckSquare, href: '/tasks', adminOnly: false },
+    { label: 'Cüzdan', icon: Wallet, href: '/wallet', adminOnly: false },
+    { label: 'Arşiv', icon: Archive, href: '/archive', adminOnly: false },
+    { label: 'Ayarlar', icon: Settings, href: '/settings', adminOnly: true },
+  ];
+
+  // Müşteri mi yoksa ekip üyesi mi?
+  const allNavItems = isClient ? clientNavItems : staffNavItems;
 
   // Admin değilse Ayarlar'ı gizle
   const navItems = allNavItems.filter(item => !item.adminOnly || user?.isAdmin);
@@ -55,6 +69,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         )}
       </div>
+
+      {/* Client Badge */}
+      {isClient && (
+        <div className="px-5 py-3 border-b border-slate-800">
+          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+            <Building2 size={14} className="text-indigo-400" />
+            <span className="text-xs font-medium text-indigo-300">Müşteri Portalı</span>
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
@@ -86,9 +110,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           {/* Avatar */}
           {user?.avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full flex-shrink-0" />
+            <img src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 ${isClient ? 'bg-gradient-to-br from-teal-500 to-cyan-600' : 'bg-gradient-to-br from-indigo-500 to-purple-600'}`}>
               {user?.name?.charAt(0) || '?'}
             </div>
           )}
@@ -100,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <Shield size={12} className="text-amber-500 flex-shrink-0" />
               )}
             </div>
-            <p className="text-xs text-slate-500 truncate">{user?.role || ''}</p>
+            <p className="text-xs text-slate-500 truncate">{isClient ? 'Müşteri' : (user?.roleTitle || '')}</p>
           </div>
           
           <button 

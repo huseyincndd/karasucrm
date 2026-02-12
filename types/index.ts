@@ -24,8 +24,32 @@ export interface FilterState {
 export interface User {
   id: string;
   name: string;
-  role: string;
-  avatar: string;
+  roleTitle: string; // Renamed from role
+  avatar: string | null;
+  isAdmin?: boolean;
+  isClient?: boolean;
+  username?: string;
+  reelsQuota?: number;
+  postsQuota?: number;
+  storiesQuota?: number;
+  services?: ClientService[];
+  // Extra fields for auth context user
+  clientId?: string;
+  packageType?: PackageType;
+  capabilities?: { type: string; price: number }[];
+  
+  // Responsible Staff
+  socialUser?: ClientAssignee;
+  designerUser?: ClientAssignee;
+  reelsUser?: ClientAssignee;
+  adsUser?: ClientAssignee;
+}
+
+export interface ClientService {
+  id: string;
+  serviceType: string;
+  startDate: string; // ISO date
+  endDate: string; // ISO date
 }
 
 export interface Comment {
@@ -50,7 +74,7 @@ export interface Task {
 }
 
 // ===== Package types =====
-export type PackageType = 'vitrin' | 'plus' | 'premium';
+export type PackageType = 'vitrin' | 'plus' | 'premium' | 'custom';
 
 export interface PackageQuota {
   reels: number;
@@ -61,14 +85,23 @@ export interface PackageQuota {
 export const PACKAGE_QUOTAS: Record<PackageType, PackageQuota> = {
   vitrin: { reels: 4, posts: 8, stories: 8 },
   plus: { reels: 6, posts: 12, stories: 12 },
-  premium: { reels: 10, posts: 20, stories: 20 }
+  premium: { reels: 10, posts: 20, stories: 20 },
+  custom: { reels: 0, posts: 0, stories: 0 } // Default for custom
 };
 
 export const PACKAGE_LABELS: Record<PackageType, string> = {
   vitrin: 'Vitrin Paket',
   plus: 'Plus Paket',
-  premium: 'Premium Paket'
+  premium: 'Premium Paket',
+  custom: 'Özel Paket'
 };
+
+export interface ClientAssignee {
+  id: string;
+  name: string;
+  avatar: string | null;
+  roleTitle: string;
+}
 
 // ===== Client =====
 export interface Client {
@@ -78,14 +111,33 @@ export interface Client {
   package: PackageType;
   startDate: string; // ISO date
   renewalDate: string; // ISO date
+  
+  // Custom Quota
+  reelsQuota?: number;
+  postsQuota?: number;
+  storiesQuota?: number;
+
   usedQuota: {
     reels: number;
+    reelsCompleted?: number;
     posts: number;
+    postsCompleted?: number;
     stories: number;
+    storiesCompleted?: number;
   };
   plannedDates: {
     reels: string[]; // Array of ISO dates
     posts: string[];
     stories: string[];
   };
+  // Müşteri portalı
+  hasPortalAccess?: boolean;
+  portalUsername?: string | null;
+
+  // Sorumlu Kişiler
+  socialUser?: ClientAssignee | null;
+  designerUser?: ClientAssignee | null;
+  reelsUser?: ClientAssignee | null;
+  adsUser?: ClientAssignee | null;
+  adsPeriod?: string | null;
 }

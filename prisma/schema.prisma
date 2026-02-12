@@ -12,70 +12,172 @@ datasource db {
 // =====================
 // USER (Ekip Üyeleri)
 // =====================
-// Settings sayfasından eklenir
-// Giriş yapmak için username + password kullanılır
+// Artık sabit bir "Rol" yok, "Yetenekler" (Capabilities) var.
 model User {
   id         String   @id @default(cuid())
-  username   String   @unique  // Giriş için kullanılır
-  password   String   // bcrypt ile hashlenmiş şifre
-  name       String   // Görünen isim
-  role       String   // Pozisyon: Video Editor, Graphic Designer, etc.
-  department String   // Departman: video, design, content
-  avatar     String?  // Profil resmi URL (opsiyonel)
-  isAdmin    Boolean  @default(false)  // Admin yetkisi
+  username   String   @unique  // Giriş kullanıcı adı
+  password   String   // Hashlenmiş şifre
+  name       String   // Ad Soyad
+
+  // Yeni Yapı
+  roleTitle  String   // Görünen Etiket (Örn: "Yazılım Mühendisi", "Sosyal Medya Yöneticisi")
+  baseSalary Float    @default(0) // Sabit Maaş (Ay sonu otomatik eklenir)
+  
+  isAdmin    Boolean  @default(false)
+  avatar     String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   // İlişkiler
-  tasks Task[]  // Bu kullanıcıya atanan görevler
+  capabilities       UserCapability[]    // Personelin yapabildiği işler ve fiyatları
+  walletTransactions WalletTransaction[] // Para hareketleri
+  tasks              Task[]              // Atanan görevler
+  services           ClientService[]     // Verdiği hizmetler
+
+  // Müşteri Sorumlulukları (Hangi müşterinin neyinden sorumlu?)
+  responsibleForSocial   Client[] @relation("SocialResponsible")
+  responsibleForDesign   Client[] @relation("DesignResponsible")
+  responsibleForReels    Client[] @relation("ReelsResponsible")
+  responsibleForAds      Client[] @relation("AdsResponsible")
 }
 
 // =====================
-// CLIENT (Müşteriler/Şirketler)  
+// USER CAPABILITY (Yetenek Matrisi)
 // =====================
-// Müşteriler sayfasından eklenir
-// Her müşterinin paket tipi ve dönem bilgisi var
+// Örn: Bu user "Reels" yapabilir ve tanesi "200 TL"dir.
+model UserCapability {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type   String // Yetenek Tipi: 'reels', 'post', 'meta_ads_15', 'meta_ads_30', 'graphic', 'social_management'
+  price  Float  // Bu iş için alacağı birim ücret (veya dönemlik ücret)
+
+  @@unique([userId, type]) // Bir kişinin aynı yetenekten iki tane olamaz
+}
+
+// =====================
+// CLIENT (Müşteriler)  
+// =====================
 model Client {
   id          String   @id @default(cuid())
-  name        String   // Şirket adı
-  logo        String?  // Logo URL (opsiyonel, yoksa isimden avatar oluşturulur)
-  packageType String   // Paket: vitrin, plus, premium
-  startDate   DateTime // Başlangıç tarihi
-  renewalDate DateTime // Yenileme tarihi
+  name        String
+  logo        String?
+  packageType String   // vitrin, plus, premium
+  
+  // Custom Quota (Optional)
+  reelsQuota   Int?
+  postsQuota   Int?
+  storiesQuota Int?
+  
+  startDate   DateTime
+  renewalDate DateTime
+
+  // Müşteri Portalı Girişi
+  username    String?  @unique
+  password    String?
+
+  // --- Yeni Atama Sistemi (4'lü Yapı) ---
+  
+  // 1. Sosyal Medya Yöneticisi (Genel Sorumlu)
+  socialUserId String? 
+  socialUser   User?   @relation("SocialResponsible", fields: [socialUserId], references: [id])
+
+  // 2. Grafik Tasarımcı (Post/Story Görselleri)
+  designerUserId String?
+  designerUser   User?   @relation("DesignResponsible", fields: [designerUserId], references: [id])
+
+  // 3. Reels Video Uzmanı
+  reelsUserId  String?
+  reelsUser    User?   @relation("ReelsResponsible", fields: [reelsUserId], references: [id])
+
+  // 4. Meta Reklam Uzmanı
+  adsUserId    String?
+  adsUser      User?   @relation("AdsResponsible", fields: [adsUserId], references: [id])
+
+  adsPeriod    String? // Reklam Dönemi: "1-15", "1-30"
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // İlişkiler
-  tasks Task[]  // Bu müşteriye ait görevler
-
-  // NOT: usedQuota ve plannedDates Task'lardan hesaplanır
-  // Ayrı alan gerekmiyor
+  tasks    Task[]
+  services ClientService[]
 }
 
 // =====================
 // TASK (Görevler)
 // =====================
-// ClientPlanner'dan oluşturulur (tarih + içerik tipi seçilince)
-// Takvimde ve Görevlerim'de görünür
 model Task {
   id          String   @id @default(cuid())
-  title       String?  // Görev başlığı (opsiyonel)
-  contentType String   // İçerik tipi: reels, posts, stories
-  date        DateTime // Planlanan tarih
-  status      String   @default("beklemede") // Durum: beklemede, hazir, tamamlandi
+  title       String?
+  contentType String   // reels, posts, stories (Frontend'de kullanılan tip)
+  date        DateTime
+  status      String   @default("beklemede") // beklemede, hazir, tamamlandi
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // İlişkiler
   clientId   String
   client     Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
   
   assignedTo String
   assignee   User   @relation(fields: [assignedTo], references: [id], onDelete: Cascade)
 
-  // İndeksler (performans için)
+  // Bu görevden doğan cüzdan işlemi
+  walletTransaction WalletTransaction?
+
   @@index([date])
   @@index([status])
   @@index([assignedTo])
   @@index([clientId])
+}
+
+// =====================
+// WALLET TRANSACTION (Cüzdan)
+// =====================
+model WalletTransaction {
+  id          String   @id @default(cuid())
+  amount      Float
+  contentType String   // reels, posts, maas_odemesi, vb.
+  description String
+  createdAt   DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  taskId String? @unique // Tekrar unique yapıldı
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  serviceId String?
+  service   ClientService? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// =====================
+// CLIENT SERVICE (Hizmet Yönetimi)
+// =====================
+model ClientService {
+  id          String   @id @default(cuid())
+  
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  userId      String   // Hizmeti veren personel
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  serviceType String   // "meta_ads", "social_media_management"
+  startDate   DateTime
+  endDate     DateTime
+  days        Int      // Kaç günlük
+  
+  price       Float    // O günkü hizmet bedeli
+  isPaid      Boolean  @default(true) // Oluşturulduğu an ödendi sayılır (Cüzdana işlenir)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Bu hizmete bağlı cüzdan hareketi
+  walletTransactions WalletTransaction[]
 }

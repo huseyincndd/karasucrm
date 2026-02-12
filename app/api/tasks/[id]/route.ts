@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuth, verifyAdmin } from '@/lib/auth';
+import { TASK_PRICES, getSalaryPeriod, isDateInSalaryPeriod } from '@/constants/wallet';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -36,8 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             id: true,
             name: true,
             avatar: true,
-            role: true,
-            department: true
+            roleTitle: true
           }
         }
       }
@@ -71,6 +71,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         staffId: task.assignedTo,
         staffName: task.assignee.name,
         staffAvatar: task.assignee.avatar,
+        staffRole: task.assignee.roleTitle, // Updated
+        staffDepartment: task.assignee.roleTitle, // Legacy support
         createdAt: task.createdAt
       }
     });
@@ -131,6 +133,72 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         );
       }
       updateData.status = status;
+
+      // Cüzdan İşlemleri (Yetenek Bazlı Fiyatlandırma)
+      const currentPeriod = getSalaryPeriod(new Date());
+      const taskDate = new Date(existingTask.date);
+      
+      // Sadece şimdiki veya gelecekteki maaş dönemi için işlem yap (Eski görevler cüzdanı etkilemez)
+      if (isDateInSalaryPeriod(taskDate, currentPeriod)) {
+        
+        // 1. Durum "Tamamlandı" olduysa -> Cüzdana Ekle
+        if (status === 'tamamlandi' && existingTask.status !== 'tamamlandi') {
+          // Görevi yapan kişiyi ve yeteneklerini çek
+          const assignee = await prisma.user.findUnique({
+            where: { id: existingTask.assignedTo },
+            include: { capabilities: true }
+          });
+
+          if (assignee) {
+            // İlgili yeteneği bul (örn: 'reels' -> 'reels')
+            // ContentType mapping gerekebilir: 'posts' -> 'post', 'stories' -> 'social_management' veya direkt mapping
+            let capabilityType = existingTask.contentType;
+            if (capabilityType === 'posts') capabilityType = 'post';
+            // Story için özel bir yetenek yoksa genel sosyal medya yönetimi veya post fiyatı baz alınabilir mi?
+            // Şimdilik 'stories' -> 'post' veya 'social_management' varsayalım. 
+            // Veya content type users'da nasıl tutuluyorsa öyle.
+            // Veritabanında capability tipleri: 'reels', 'post', 'social_management', 'ad_management'
+            
+            if (capabilityType === 'stories') capabilityType = 'post'; // Story için post fiyatını baz al (veya mantığı değiştirin)
+
+            const capability = assignee.capabilities.find(c => c.type === capabilityType);
+            const price = capability ? capability.price : 0;
+
+            if (price > 0) {
+              const taskWithClient = await prisma.task.findUnique({
+                where: { id },
+                include: { client: { select: { name: true } } }
+              });
+
+               // Daha önce işlem yoksa oluştur
+               const existingTransaction = await prisma.walletTransaction.findUnique({
+                where: { taskId: id }
+              });
+
+              if (!existingTransaction) {
+                const contentLabel = existingTask.contentType === 'reels' ? 'Reels' 
+                  : existingTask.contentType === 'posts' ? 'Post' : 'Story';
+                  
+                await prisma.walletTransaction.create({
+                  data: {
+                    amount: price,
+                    contentType: existingTask.contentType,
+                    description: `${taskWithClient?.client.name || 'Müşteri'} - ${contentLabel}`,
+                    userId: existingTask.assignedTo,
+                    taskId: id,
+                  }
+                });
+              }
+            }
+          }
+        }
+        // 2. Durum "Tamamlandı"dan çıktıysa -> Cüzdandan Sil
+        else if (status !== 'tamamlandi' && existingTask.status === 'tamamlandi') {
+          await prisma.walletTransaction.deleteMany({
+            where: { taskId: id }
+          });
+        }
+      }
     }
 
     // Admin-only güncellemeler

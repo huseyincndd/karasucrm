@@ -70,6 +70,58 @@ body {
   }
 }
 
+/* Animation for sliding from top (mobile filters) */
+@keyframes slide-in-from-top {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.slide-in-from-top {
+  animation-name: slide-in-from-top;
+}
+
+/* Touch improvements for mobile */
+@media (max-width: 768px) {
+  /* Larger touch targets */
+  button, 
+  [role="button"],
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better tap highlight */
+  * {
+    -webkit-tap-highlight-color: rgba(99, 102, 241, 0.15);
+  }
+  
+  /* Prevent text selection on touch */
+  .no-select {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Smoother scrolling */
+  .overflow-y-auto,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out forwards;
 }

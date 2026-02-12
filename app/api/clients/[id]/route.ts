@@ -40,6 +40,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             }
           },
           orderBy: { date: 'asc' }
+        },
+        // Sorumlu Kişilerin Bilgilerini Getir
+        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        // Hizmet Kayıtları
+        services: {
+          include: {
+            user: { select: { id: true, name: true, avatar: true } }
+          },
+          orderBy: { createdAt: 'desc' }
         }
       }
     });
@@ -51,19 +63,39 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // usedQuota hesapla
+    // usedQuota ve plannedDates hesapla
     const usedQuota = {
       reels: client.tasks.filter((t: any) => t.contentType === 'reels').length,
       posts: client.tasks.filter((t: any) => t.contentType === 'posts').length,
       stories: client.tasks.filter((t: any) => t.contentType === 'stories').length
     };
 
+    const plannedDates: Record<string, string[]> = {
+      reels: [],
+      posts: [],
+      stories: []
+    };
+    
+    client.tasks.forEach((task: any) => {
+      const dateStr = task.date.toISOString().split('T')[0];
+      if (plannedDates[task.contentType]) {
+        plannedDates[task.contentType].push(dateStr);
+      }
+    });
+
     return NextResponse.json({ 
       client: {
         ...client,
+        password: undefined, // Şifreyi gönderme
         startDate: client.startDate.toISOString().split('T')[0],
         renewalDate: client.renewalDate.toISOString().split('T')[0],
+        
+        // Atama bilgileri zaten include ile geldi
+        
         usedQuota,
+        plannedDates,
+        hasPortalAccess: !!(client.username && client.password),
+        portalUsername: client.username || null,
         tasks: client.tasks.map((t: any) => ({
           ...t,
           date: t.date.toISOString().split('T')[0]
@@ -93,7 +125,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, logo, packageType, startDate, renewalDate } = body;
+    const { 
+      name, 
+      logo, 
+      packageType, 
+      startDate, 
+      renewalDate, 
+      username, 
+      password,
+      socialUserId,
+      designerUserId,
+      reelsUserId,
+      adsUserId,
+      adsPeriod
+    } = body;
 
     // Müşteri var mı kontrol
     const existingClient = await prisma.client.findUnique({ where: { id } });
@@ -120,15 +165,65 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
     if (startDate) updateData.startDate = new Date(startDate);
     if (renewalDate) updateData.renewalDate = new Date(renewalDate);
+    
+    // Yeni Atama Alanları
+    if (socialUserId !== undefined) updateData.socialUserId = socialUserId || null;
+    if (designerUserId !== undefined) updateData.designerUserId = designerUserId || null;
+    if (reelsUserId !== undefined) updateData.reelsUserId = reelsUserId || null;
+    if (adsUserId !== undefined) updateData.adsUserId = adsUserId || null;
+    if (adsPeriod !== undefined) updateData.adsPeriod = adsPeriod || null;
+
+    // Müşteri portalı giriş bilgileri
+    if (username !== undefined) {
+      const lowerUsername = username ? username.toLowerCase().trim() : null;
+      
+      if (lowerUsername) {
+        // Username benzersiz mi kontrol et
+        const existingClientWithUsername = await prisma.client.findUnique({ where: { username: lowerUsername } });
+        if (existingClientWithUsername && existingClientWithUsername.id !== id) {
+          return NextResponse.json(
+            { error: 'Bu kullanıcı adı başka bir müşteri tarafından kullanılıyor' },
+            { status: 400 }
+          );
+        }
+        
+        const existingUser = await prisma.user.findUnique({ where: { username: lowerUsername } });
+        if (existingUser) {
+          return NextResponse.json(
+            { error: 'Bu kullanıcı adı bir ekip üyesi tarafından kullanılıyor' },
+            { status: 400 }
+          );
+        }
+      }
+      updateData.username = lowerUsername;
+    }
+
+    if (password) {
+      if (password.length < 6) {
+        return NextResponse.json(
+          { error: 'Şifre en az 6 karakter olmalı' },
+          { status: 400 }
+        );
+      }
+      const bcrypt = (await import('bcryptjs')).default;
+      updateData.password = await bcrypt.hash(password, 12);
+    }
 
     const client = await prisma.client.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: {
+        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
+      }
     });
 
     return NextResponse.json({ 
       client: {
         ...client,
+        password: undefined, // Şifreyi response'da gönderme
         startDate: client.startDate.toISOString().split('T')[0],
         renewalDate: client.renewalDate.toISOString().split('T')[0]
       }

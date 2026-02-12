@@ -271,9 +271,9 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-100 rounded-t-xl sm:rounded-t-2xl gap-4 sm:gap-0">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
               {dayNum} {currentMonthName}
-              <span className="text-lg font-normal text-slate-400">Programı</span>
+              <span className="text-base sm:text-lg font-normal text-slate-400">Programı</span>
             </h2>
             <p className="text-slate-500 mt-1 text-sm sm:text-base">Bu tarih için planlanan içerikler</p>
           </div>
@@ -422,7 +422,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                         </div>
                         
                         {/* 3. Date Dropdown (Admin only) */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                           {!isAdmin ? (
                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed">
                                <Calendar size={14} />
@@ -443,7 +443,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
                               </button>
 
                               {activeDropdown?.id === task.id && activeDropdown?.type === 'date' && (
-                                <div className="absolute top-full right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20 max-h-60 overflow-y-auto">
+                                <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-1 w-full sm:w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20 max-h-60 overflow-y-auto">
                                   {AVAILABLE_DATES.map((d) => (
                                     <button
                                       key={d.value}
@@ -489,7 +489,7 @@ const DayModal: React.FC<DayModalProps> = ({ isOpen, onClose, date, dayNum, init
             onClick={handleSaveChanges}
             disabled={!hasChanges || isSaving}
             className={`
-              flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all
+              w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all
               ${hasChanges 
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 hover:shadow-xl hover:-translate-y-0.5' 
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'}

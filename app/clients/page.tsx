@@ -10,6 +10,7 @@ import { Plus, Users, AlertTriangle, Loader2, RefreshCw, Menu } from 'lucide-rea
 import { useAuth } from '@/contexts/AuthContext';
 
 // API'den gelen client verisini frontend tipine dönüştür
+// API'den gelen client verisini frontend tipine dönüştür
 interface ApiClient {
   id: string;
   name: string;
@@ -27,7 +28,19 @@ interface ApiClient {
     posts: string[];
     stories: string[];
   };
+  hasPortalAccess?: boolean;
+  portalUsername?: string | null;
   createdAt: string;
+  
+  // Sorumlu Kişiler
+  socialUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
+  designerUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
+  reelsUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
+  adsUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
+  adsPeriod?: string | null;
+  reelsQuota?: number;
+  postsQuota?: number;
+  storiesQuota?: number;
 }
 
 const mapApiClientToClient = (apiClient: ApiClient): Client => ({
@@ -38,11 +51,25 @@ const mapApiClientToClient = (apiClient: ApiClient): Client => ({
   startDate: apiClient.startDate,
   renewalDate: apiClient.renewalDate,
   usedQuota: apiClient.usedQuota,
-  plannedDates: apiClient.plannedDates
+  plannedDates: apiClient.plannedDates,
+  hasPortalAccess: apiClient.hasPortalAccess,
+  portalUsername: apiClient.portalUsername,
+  
+  // Custom Quota
+  reelsQuota: apiClient.reelsQuota,
+  postsQuota: apiClient.postsQuota,
+  storiesQuota: apiClient.storiesQuota,
+  
+  // Yeni Alanlar
+  socialUser: apiClient.socialUser,
+  designerUser: apiClient.designerUser,
+  reelsUser: apiClient.reelsUser,
+  adsUser: apiClient.adsUser,
+  adsPeriod: apiClient.adsPeriod,
 });
 
 export default function ClientsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.isAdmin ?? false;
   
   const [clients, setClients] = useState<Client[]>([]);
@@ -77,10 +104,40 @@ export default function ClientsPage() {
     }
   }, []);
 
-  // Sayfa yüklendiğinde müşterileri çek
+  // Sayfa yüklendiğinde müşterileri çek (Sadece admin ve yükleme bittiyse)
   useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
+    if (!authLoading && isAdmin) {
+      fetchClients();
+    }
+  }, [authLoading, isAdmin, fetchClients]);
+
+  // Yetki Kontrolü - Hook'lardan SONRA yapılmalı
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <Loader2 size={32} className="text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50 p-4">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-lg w-full max-w-sm border border-slate-100">
+            <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={32} className="text-rose-500" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">Yetkisiz Erişim</h2>
+            <p className="text-slate-500 text-sm mb-6">
+                Müşteriler sayfasına yalnızca yöneticiler erişebilir.
+            </p>
+            <a href="/" className="inline-flex items-center justify-center w-full px-4 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors text-sm font-medium">
+                Ana Sayfaya Dön
+            </a>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate urgent clients count
   const urgentCount = clients.filter(c => {
@@ -98,23 +155,37 @@ export default function ClientsPage() {
   };
 
   // Yeni müşteri ekle
-  const handleAddClient = async (data: { name: string; logo: string; startDate: string; package: PackageType }) => {
+  const handleAddClient = async (data: any) => {
     try {
       setSaving(true);
       
       const renewalDate = new Date(data.startDate);
       renewalDate.setMonth(renewalDate.getMonth() + 1);
       
+      const payload = {
+        name: data.name,
+        logo: data.logo || null,
+        packageType: data.package,
+        startDate: data.startDate,
+        renewalDate: renewalDate.toISOString().split('T')[0],
+        
+        // Yeni Atamalar
+        socialUserId: data.socialUserId,
+        designerUserId: data.designerUserId,
+        reelsUserId: data.reelsUserId,
+        adsUserId: data.adsUserId,
+        adsPeriod: data.adsPeriod,
+        
+        // Custom Quota
+        reelsQuota: data.reelsQuota,
+        postsQuota: data.postsQuota,
+        storiesQuota: data.storiesQuota
+      };
+
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: data.name,
-          logo: data.logo || null,
-          packageType: data.package,
-          startDate: data.startDate,
-          renewalDate: renewalDate.toISOString().split('T')[0]
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {

@@ -18,52 +18,50 @@ import {
   Lock,
   Shield,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Menu,
+  CheckCircle2,
+  Banknote,
+  Briefcase
 } from 'lucide-react';
 
-type DepartmentType = 'video' | 'design' | 'content';
+// Yetenek Tipleri (Sabit Liste)
+const CAPABILITY_TYPES = [
+  { key: 'social_management', label: 'Sosyal Medya Yönetimi' },
+  { key: 'post', label: 'Post / Story Tasarımı' }, // Eskiden "Graphic Design"
+  { key: 'reels', label: 'Reels Video' },
+  { key: 'meta_ads_15', label: 'Meta Reklam (1-15 Gün)' },
+  { key: 'meta_ads_30', label: 'Meta Reklam (1-30 Gün)' },
+];
 
-// API'den gelen kullanıcı tipi
+interface Capability {
+  type: string;
+  price: number;
+}
+
+// API'den gelen kullanıcı tipi (Yeni Schema'ya göre)
 interface ApiUser {
   id: string;
   username: string;
   name: string;
-  role: string;
-  department: string;
+  roleTitle: string;    // Yeni: Görünen Unvan
+  baseSalary: number;   // Yeni: Sabit Maaş
   avatar: string | null;
   isAdmin: boolean;
   createdAt: string;
+  capabilities: Capability[]; // Yeni: Yetenekler
 }
 
-interface NewStaffForm {
+interface UserForm {
   name: string;
   username: string;
-  password: string;
-  role: string;
-  department: DepartmentType;
-  isAdmin: boolean;
-}
-
-interface EditForm {
-  name?: string;
-  username?: string;
   password?: string;
-  role?: string;
-  department?: string;
-  isAdmin?: boolean;
+  roleTitle: string;
+  baseSalary: string; // Input için string tutuyoruz, gönderirken number yaparız
+  isAdmin: boolean;
+  capabilities: Record<string, string>; // type -> price (string olarak)
+  selectedCapabilities: Record<string, boolean>; // type -> checklist durumu
 }
-
-const DEPARTMENT_LABELS: Record<DepartmentType, string> = {
-  video: 'Reels Yapımcıları',
-  design: 'Story Yapımcıları',
-  content: 'Gönderi Yapımcıları'
-};
-
-const ROLE_SUGGESTIONS: Record<DepartmentType, string[]> = {
-  video: ['Video Editor', 'Motion Designer', 'Videographer', 'Video Producer'],
-  design: ['Graphic Designer', 'Senior Designer', 'UI/UX Designer', 'Art Director'],
-  content: ['Content Creator', 'Social Media Manager', 'Copywriter', 'Content Strategist'],
-};
 
 const SettingsPage: React.FC = () => {
   const router = useRouter();
@@ -77,22 +75,26 @@ const SettingsPage: React.FC = () => {
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
-  const [editingStaff, setEditingStaff] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({});
   
-  // Password visibility states
-  const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({}); // For edit inputs per user
-  const [showNewPassword, setShowNewPassword] = useState(false); // For add modal
-  
-  const [newStaffForm, setNewStaffForm] = useState<NewStaffForm>({
+  // Edit veya New Form State (Tek bir state kullanacağız, modal ile yönetilecek)
+  const [formData, setFormData] = useState<UserForm>({
     name: '',
     username: '',
     password: '',
-    role: '',
-    department: 'design',
-    isAdmin: false
+    roleTitle: '',
+    baseSalary: '0',
+    isAdmin: false,
+    capabilities: {},
+    selectedCapabilities: {}
   });
+  
+  const [editingUserId, setEditingUserId] = useState<string | null>(null); // null ise "Yeni Ekle" modundayız
+  
+  // Password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Kullanıcıları API'den yükle
   const fetchUsers = useCallback(async () => {
@@ -130,32 +132,108 @@ const SettingsPage: React.FC = () => {
     }
   }, [user, authLoading, router]);
 
-  // Yeni kullanıcı ekle
-  const handleAddStaff = async () => {
-    if (!newStaffForm.name || !newStaffForm.username || !newStaffForm.password || !newStaffForm.role) return;
+  // Form Reset
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      username: '',
+      password: '',
+      roleTitle: '',
+      baseSalary: '0',
+      isAdmin: false,
+      capabilities: {},  // Fiyatlar
+      selectedCapabilities: {} // Checkboxlar
+    });
+    setEditingUserId(null);
+    setShowPassword(false);
+  };
+
+  // Düzenleme Modunu Başlat
+  const handleStartEdit = (staff: ApiUser) => {
+    setEditingUserId(staff.id);
+    
+    // Capabilities verisini form formatına çevir
+    const caps: Record<string, string> = {};
+    const selected: Record<string, boolean> = {};
+
+    staff.capabilities.forEach(c => {
+      caps[c.type] = c.price.toString();
+      selected[c.type] = true;
+    });
+
+    setFormData({
+      name: staff.name,
+      username: staff.username,
+      password: '', // Şifre boş gelir, değiştirilmek istenirse doldurulur
+      roleTitle: staff.roleTitle,
+      baseSalary: staff.baseSalary.toString(),
+      isAdmin: staff.isAdmin,
+      capabilities: caps,
+      selectedCapabilities: selected
+    });
+    
+    setShowAddModal(true); // Aynı modalı kullanıyoruz
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.username || !formData.roleTitle) return;
+    
+    // Yeni kullanıcı ise şifre zorunlu
+    if (!editingUserId && (!formData.password || formData.password.length < 6)) {
+      alert('Şifre en az 6 karakter olmalıdır.');
+      return;
+    }
 
     try {
       setSaving(true);
       
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newStaffForm,
-          avatar: `https://i.pravatar.cc/150?u=${Date.now()}`
-        })
-      });
+      // Capabilities Array'ini hazırla
+      const capabilitiesPayload = Object.keys(formData.selectedCapabilities)
+        .filter(key => formData.selectedCapabilities[key]) // Sadece seçili olanlar
+        .map(key => ({
+          type: key,
+          price: parseFloat(formData.capabilities[key] || '0')
+        }));
+
+      const payload = {
+        name: formData.name,
+        username: formData.username,
+        password: formData.password || undefined, // Boşsa gönderme (edit modunda)
+        roleTitle: formData.roleTitle,
+        baseSalary: formData.baseSalary,
+        isAdmin: formData.isAdmin,
+        avatar: `https://i.pravatar.cc/150?u=${Date.now()}`,
+        capabilities: capabilitiesPayload
+      };
+
+      let res;
+      if (editingUserId) {
+        // UPDATE
+        res = await fetch(`/api/users/${editingUserId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        // CREATE
+        res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Kullanıcı eklenemedi');
+        throw new Error(data.error || 'İşlem başarısız');
       }
 
-      const data = await res.json();
-      setStaffList(prev => [data.user, ...prev]);
+      // Listeyi güncelle
+      await fetchUsers();
       setShowAddModal(false);
-      setNewStaffForm({ name: '', username: '', password: '', role: '', department: 'design', isAdmin: false });
+      resetForm();
       showSaveSuccessMessage();
+
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Bir hata oluştu');
     } finally {
@@ -167,7 +245,6 @@ const SettingsPage: React.FC = () => {
   const handleDeleteStaff = async (id: string) => {
     try {
       setSaving(true);
-      
       const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
 
       if (!res.ok) {
@@ -185,81 +262,22 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Kullanıcı düzenleme başlat
-  const handleEditStaff = (staff: ApiUser) => {
-    setEditingStaff(staff.id);
-    setEditForm({
-      name: staff.name,
-      username: staff.username,
-      role: staff.role,
-      department: staff.department,
-      isAdmin: staff.isAdmin,
-      password: ''
-    });
-    // Reset visibility for this user
-    setShowPasswordMap(prev => ({ ...prev, [staff.id]: false }));
-  };
-
-  // Kullanıcı güncelle
-  const handleSaveEdit = async () => {
-    if (!editingStaff || !editForm.name || !editForm.username || !editForm.role) return;
-
-    try {
-      setSaving(true);
-      
-      // Boş şifreyi gönderme
-      const updateData = { ...editForm };
-      if (!updateData.password) {
-        delete updateData.password;
-      }
-      
-      const res = await fetch(`/api/users/${editingStaff}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Kullanıcı güncellenemedi');
-      }
-
-      const data = await res.json();
-      setStaffList(prev => prev.map(s => s.id === editingStaff ? data.user : s));
-      setEditingStaff(null);
-      setEditForm({});
-      showSaveSuccessMessage();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Bir hata oluştu');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const showSaveSuccessMessage = () => {
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2000);
   };
 
-  const getDepartmentColor = (dept: string) => {
-    switch (dept) {
-      case 'video': return 'bg-rose-100 text-rose-700';
-      case 'design': return 'bg-blue-100 text-blue-700';
-      case 'content': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-slate-100 text-slate-700';
-    }
-  };
-
-  const toggleEditPasswordVisibility = (id: string) => {
-    setShowPasswordMap(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
   const handleNameChange = (name: string) => {
-    setNewStaffForm(prev => ({
-      ...prev,
-      name,
-      username: name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '')
-    }));
+    // Sadece yeni eklerken otomatik username oluştur
+    if (!editingUserId) {
+      setFormData(prev => ({
+        ...prev,
+        name,
+        username: name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '')
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, name }));
+    }
   };
 
   // Yükleniyor veya admin değilse
@@ -278,23 +296,31 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-100">
-      <Sidebar />
+    <div className="flex h-screen bg-slate-100 overflow-hidden">
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto min-w-0">
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Ekip Yönetimi</h1>
-              <p className="text-sm text-slate-500 mt-1">Kullanıcı ekle, düzenle ve sil</p>
+        <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 md:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              >
+                <Menu size={24} />
+              </button>
+              <div>
+                <h1 className="text-xl md:text-2xl font-semibold text-slate-900">Ekip Yönetimi</h1>
+                <p className="text-xs md:text-sm text-slate-500 mt-0.5 md:mt-1">Kullanıcı ekle, düzenle ve yeteneklerini tanımla</p>
+              </div>
             </div>
             
             <div className="flex items-center gap-3">
               {saveSuccess && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg animate-pulse">
-                  <Save size={18} />
-                  <span className="text-sm font-medium">Kaydedildi!</span>
+                <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-emerald-50 text-emerald-700 rounded-lg animate-pulse">
+                  <Save size={16} />
+                  <span className="text-xs md:text-sm font-medium">Kaydedildi!</span>
                 </div>
               )}
               
@@ -310,29 +336,34 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-8">
-          <div className="max-w-5xl mx-auto space-y-6">
+        <div className="p-4 md:p-8">
+          <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
             {/* Error */}
             {error && (
-              <div className="flex items-center gap-3 p-4 bg-rose-50 text-rose-700 rounded-lg">
-                <AlertTriangle size={20} />
-                <span>{error}</span>
-                <button onClick={fetchUsers} className="ml-auto text-sm underline">Tekrar Dene</button>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 p-3 md:p-4 bg-rose-50 text-rose-700 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={18} />
+                  <span className="text-sm">{error}</span>
+                </div>
+                <button onClick={fetchUsers} className="text-sm underline sm:ml-auto">Tekrar Dene</button>
               </div>
             )}
 
             {/* Add Staff Button */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Ekip Üyeleri</h2>
-                <p className="text-sm text-slate-500">{staffList.length} kullanıcı</p>
+                <h2 className="text-base md:text-lg font-semibold text-slate-900">Ekip Listesi</h2>
+                <p className="text-xs md:text-sm text-slate-500">{staffList.length} kullanıcı</p>
               </div>
               <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
+                onClick={() => {
+                  resetForm();
+                  setShowAddModal(true);
+                }}
+                className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25 w-full sm:w-auto justify-center"
               >
                 <Plus size={18} />
-                Yeni Kullanıcı Ekle
+                Yeni Personel Ekle
               </button>
             </div>
 
@@ -343,187 +374,127 @@ const SettingsPage: React.FC = () => {
                 <p className="text-slate-500">Kullanıcılar yükleniyor...</p>
               </div>
             ) : (
-              <>
-                {/* Staff List by Department */}
-                {(['video', 'design', 'content'] as DepartmentType[]).map((dept) => {
-                  const deptStaff = staffList.filter(s => s.department === dept);
-                  if (deptStaff.length === 0) return null;
-
-                  return (
-                    <div key={dept} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                      <div className={`px-5 py-3 border-b border-slate-100 ${getDepartmentColor(dept)} bg-opacity-50`}>
-                        <h3 className="font-semibold text-sm">{DEPARTMENT_LABELS[dept]}</h3>
+              // Staff List (Grid / List)
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {staffList.map((staff) => (
+                  <div key={staff.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
+                    {/* Header */}
+                    <div className="p-5 border-b border-slate-100 flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div className="relative">
+                          {staff.avatar ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img 
+                              src={staff.avatar} 
+                              alt={staff.name}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+                              {staff.name.charAt(0)}
+                            </div>
+                          )}
+                          {staff.isAdmin && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center border-2 border-white" title="Admin">
+                              <Shield size={10} className="text-white" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-semibold text-slate-900 line-clamp-1" title={staff.name}>{staff.name}</h3>
+                          <p className="text-xs text-slate-500 font-mono">@{staff.username}</p>
+                        </div>
                       </div>
                       
-                      <div className="divide-y divide-slate-100">
-                        {deptStaff.map((staff) => (
-                          <div key={staff.id} className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
-                            {/* Avatar */}
-                            <div className="relative">
-                              {staff.avatar ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img 
-                                  src={staff.avatar} 
-                                  alt={staff.name}
-                                  className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-                                  {staff.name.charAt(0)}
-                                </div>
-                              )}
-                              {staff.isAdmin && (
-                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
-                                  <Shield size={10} className="text-white" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Info */}
-                            {editingStaff === staff.id ? (
-                              <div className="flex-1 grid grid-cols-5 gap-3 items-center">
-                                <input
-                                  type="text"
-                                  value={editForm.name || ''}
-                                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400"
-                                  placeholder="İsim"
-                                />
-                                <input
-                                  type="text"
-                                  value={editForm.username || ''}
-                                  onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
-                                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400"
-                                  placeholder="Kullanıcı adı"
-                                />
-                                <div className="relative">
-                                  <input
-                                    type={showPasswordMap[staff.id] ? "text" : "password"}
-                                    value={editForm.password || ''}
-                                    onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400 pr-8"
-                                    placeholder="Yeni şifre"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleEditPasswordVisibility(staff.id)}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 z-10 p-1"
-                                    tabIndex={-1}
-                                  >
-                                    {showPasswordMap[staff.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                                  </button>
-                                </div>
-                                <select
-                                  value={editForm.department || 'design'}
-                                  onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
-                                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                >
-                                  <option value="video">Reels Yapımcıları</option>
-                                  <option value="design">Story Yapımcıları</option>
-                                  <option value="content">Gönderi Yapımcıları</option>
-                                </select>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={handleSaveEdit}
-                                    disabled={saving}
-                                    className="p-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50"
-                                    title="Kaydet"
-                                  >
-                                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingStaff(null); setEditForm({}); }}
-                                    className="p-2 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors"
-                                    title="İptal"
-                                  >
-                                    <X size={16} />
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-medium text-slate-900">{staff.name}</p>
-                                    {staff.isAdmin && (
-                                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                                        Admin
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-slate-500">{staff.role}</p>
-                                </div>
-
-                                {/* Credentials */}
-                                <div className="flex items-center gap-6 text-sm">
-                                  <div className="flex items-center gap-2 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                                    <User size={14} className="text-slate-400" />
-                                    <span className="font-mono text-slate-900 select-all">{staff.username}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-slate-400 px-3 py-1.5 rounded-lg border border-transparent">
-                                    <Lock size={14} />
-                                    <span className="font-mono text-xs">••••••</span>
-                                  </div>
-                                </div>
-
-                                {/* Department Badge */}
-                                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getDepartmentColor(staff.department)}`}>
-                                  {DEPARTMENT_LABELS[staff.department as DepartmentType] || staff.department}
-                                </span>
-
-                                {/* Actions */}
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleEditStaff(staff)}
-                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                    title="Düzenle"
-                                  >
-                                    <Edit3 size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => setShowDeleteModal(staff.id)}
-                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                    title="Sil"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ))}
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleStartEdit(staff)}
+                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Düzenle"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteModal(staff.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Sil"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
+
+                    {/* Role & Salary Info */}
+                    <div className="px-5 py-3 bg-slate-50/50 space-y-2">
+                       <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2 text-slate-600">
+                             <Briefcase size={14} />
+                             <span className="font-medium truncate max-w-[120px]" title={staff.roleTitle}>{staff.roleTitle}</span>
+                          </div>
+                          {staff.baseSalary > 0 && (
+                            <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-xs font-semibold">
+                              <Banknote size={12} />
+                              <span>{staff.baseSalary.toLocaleString('tr-TR')} ₺</span>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+
+                    {/* Capabilities Tags */}
+                    <div className="px-5 py-4 min-h-[80px]">
+                      <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">Yetenekler</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {staff.capabilities.length > 0 ? (
+                          staff.capabilities.map((cap) => (
+                             <div key={cap.type} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-[10px] text-slate-600 shadow-sm" title={`${cap.price} TL`}>
+                               {CAPABILITY_TYPES.find(t => t.key === cap.type)?.label || cap.type}
+                               <span className="text-indigo-600 font-bold ml-0.5 border-l border-slate-200 pl-1">
+                                 {cap.price}₺
+                               </span>
+                             </div>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Yetenek tanımlanmamış.</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
 
                 {/* Empty State */}
                 {staffList.length === 0 && !loading && (
-                  <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                  <div className="col-span-full bg-white rounded-xl border border-slate-200 p-12 text-center">
                     <Users size={48} className="mx-auto text-slate-300 mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-700 mb-2">Henüz ekip üyesi yok</h3>
-                    <p className="text-sm text-slate-500 mb-4">İlk ekip üyenizi ekleyerek başlayın</p>
+                    <h3 className="text-lg font-semibold text-slate-700 mb-2">Henüz personel yok</h3>
+                    <p className="text-sm text-slate-500 mb-4">İlk personelinizi ekleyerek başlayın</p>
                     <button
-                      onClick={() => setShowAddModal(true)}
+                      onClick={() => {
+                        resetForm();
+                        setShowAddModal(true);
+                      }}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
                     >
                       <Plus size={18} />
-                      Yeni Kullanıcı Ekle
+                      Yeni Personel Ekle
                     </button>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
       </main>
 
-      {/* Add Staff Modal */}
+      {/* Add/Edit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-500 to-purple-500">
-              <h3 className="text-lg font-semibold text-white">Yeni Kullanıcı Ekle</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-500 to-purple-500">
+              <h3 className="text-base sm:text-lg font-semibold text-white">
+                {editingUserId ? 'Personeli Düzenle' : 'Yeni Personel Ekle'}
+              </h3>
               <button 
                 onClick={() => setShowAddModal(false)}
                 className="p-1 text-white/70 hover:text-white transition-colors"
@@ -532,127 +503,191 @@ const SettingsPage: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  <span className="text-rose-500">*</span> İsim Soyisim
-                </label>
-                <input
-                  type="text"
-                  value={newStaffForm.name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400"
-                  placeholder="Ahmet Yılmaz"
-                />
+            <div className="p-4 sm:p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+              {/* Temel Bilgiler Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {/* İsim */}
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      <span className="text-rose-500">*</span> İsim Soyisim
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Ad Soyad"
+                    />
+                 </div>
+
+                 {/* Kullanıcı Adı */}
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      <span className="text-rose-500">*</span> Kullanıcı Adı
+                    </label>
+                    <div className="relative">
+                      <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={formData.username}
+                        onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/\s+/g, '.') }))}
+                        className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="kullanici.adi"
+                      />
+                    </div>
+                 </div>
+
+                 {/* Şifre (Sadece Create veya İsteğe Bağlı Update) */}
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      {editingUserId ? 'Şifre (Değiştirmek için girin)' : <><span className="text-rose-500">*</span> Şifre</>}
+                    </label>
+                    <div className="relative">
+                      <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={formData.password}
+                        onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                        className="w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder={editingUserId ? '••••••••' : 'En az 6 karakter'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                 </div>
+
+                 {/* Unvan */}
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      <span className="text-rose-500">*</span> Görünen Unvan
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.roleTitle}
+                      onChange={(e) => setFormData(prev => ({ ...prev, roleTitle: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Örn: Sosyal Medya Yöneticisi"
+                    />
+                 </div>
+
+                 {/* Sabit Maaş */}
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                       Sabit Maaş (Aylık)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold">₺</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.baseSalary}
+                        onChange={(e) => setFormData(prev => ({ ...prev, baseSalary: e.target.value }))}
+                        className="w-full pl-8 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Parça başı çalışıyorsa 0 giriniz.</p>
+                 </div>
+
+                 {/* Admin Yetkisi */}
+                 <div className="flex items-end pb-2">
+                    <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors w-full border border-amber-100">
+                      <input
+                        type="checkbox"
+                        checked={formData.isAdmin}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                        className="w-4 h-4 text-amber-600 border-slate-300 rounded focus:ring-amber-500"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Shield size={16} className="text-amber-600" />
+                        <span className="text-sm font-medium text-amber-800">Admin Yetkisi</span>
+                      </div>
+                    </label>
+                 </div>
               </div>
 
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  <span className="text-rose-500">*</span> Kullanıcı Adı
-                </label>
-                <div className="relative">
-                  <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={newStaffForm.username}
-                    onChange={(e) => setNewStaffForm(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '') }))}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400 font-mono"
-                    placeholder="ahmet.yilmaz"
-                  />
+              {/* YETENEK MATRİSİ */}
+              <div className="border-t border-slate-100 pt-6">
+                <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                   <CheckCircle2 size={16} className="text-indigo-600" />
+                   Yetenekler ve Birim Fiyatlar
+                </h4>
+                <div className="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200">
+                  {CAPABILITY_TYPES.map((cap) => {
+                    const isSelected = formData.selectedCapabilities[cap.key] || false;
+                    
+                    return (
+                      <div key={cap.key} className={`flex items-center justify-between p-3 sm:px-4 transition-colors ${isSelected ? 'bg-white' : ''}`}>
+                         {/* Sol: Checkbox + Label */}
+                         <label className="flex items-center gap-3 cursor-pointer flex-1">
+                            <input 
+                               type="checkbox"
+                               checked={isSelected}
+                               onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setFormData(prev => ({
+                                     ...prev,
+                                     selectedCapabilities: { ...prev.selectedCapabilities, [cap.key]: checked }
+                                  }));
+                               }}
+                               className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            />
+                            <span className={`text-sm ${isSelected ? 'font-medium text-slate-900' : 'text-slate-500'}`}>
+                               {cap.label}
+                            </span>
+                         </label>
+
+                         {/* Sağ: Fiyat Input (Sadece seçiliyse görünür) */}
+                         {isSelected && (
+                           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-200">
+                              <span className="text-xs text-slate-500 font-medium whitespace-nowrap hidden sm:inline">Birim Fiyat:</span>
+                              <div className="relative w-24 sm:w-32">
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">TL</span>
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  placeholder="0"
+                                  value={formData.capabilities[cap.key] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        capabilities: { ...prev.capabilities, [cap.key]: val }
+                                    }));
+                                  }}
+                                  className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm text-right pr-8 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                           </div>
+                         )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Giriş yaparken kullanılacak</p>
+                <p className="text-xs text-slate-400 mt-2 px-1">
+                   * Seçili yetenekler, görev atamalarında personelin listelenmesini sağlar. Fiyatlar otomatik cüzdana işlenir.
+                </p>
               </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  <span className="text-rose-500">*</span> Şifre
-                </label>
-                <div className="relative">
-                  <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={newStaffForm.password}
-                    onChange={(e) => setNewStaffForm(prev => ({ ...prev, password: e.target.value }))}
-                    className="w-full pl-10 pr-12 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400 font-mono"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">En az 6 karakter</p>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Departman</label>
-                <select
-                  value={newStaffForm.department}
-                  onChange={(e) => setNewStaffForm(prev => ({ ...prev, department: e.target.value as DepartmentType, role: '' }))}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="video">Reels Yapımcıları</option>
-                  <option value="design">Story Yapımcıları</option>
-                  <option value="content">Gönderi Yapımcıları</option>
-                </select>
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  <span className="text-rose-500">*</span> Pozisyon
-                </label>
-                <input
-                  type="text"
-                  value={newStaffForm.role}
-                  onChange={(e) => setNewStaffForm(prev => ({ ...prev, role: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400"
-                  placeholder="Video Editor"
-                  list="role-suggestions"
-                />
-                <datalist id="role-suggestions">
-                  {ROLE_SUGGESTIONS[newStaffForm.department].map((role) => (
-                    <option key={role} value={role} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* Admin Checkbox */}
-              <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={newStaffForm.isAdmin}
-                  onChange={(e) => setNewStaffForm(prev => ({ ...prev, isAdmin: e.target.checked }))}
-                  className="w-4 h-4 text-amber-600 border-slate-300 rounded focus:ring-amber-500"
-                />
-                <div className="flex items-center gap-2">
-                  <Shield size={16} className="text-amber-600" />
-                  <span className="text-sm font-medium text-amber-800">Admin yetkisi ver</span>
-                </div>
-              </label>
             </div>
             
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+            <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                className="px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors text-center"
               >
                 İptal
               </button>
               <button
-                onClick={handleAddStaff}
-                disabled={!newStaffForm.name || !newStaffForm.username || !newStaffForm.password || newStaffForm.password.length < 6 || !newStaffForm.role || saving}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 sm:py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                Kullanıcı Ekle
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {editingUserId ? 'Değişiklikleri Kaydet' : 'Personeli Ekle'}
               </button>
             </div>
           </div>
@@ -661,7 +696,7 @@ const SettingsPage: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="p-6 text-center">
               <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Client, PACKAGE_LABELS, PACKAGE_QUOTAS } from '@/types';
-import { Video, Image as ImageIcon, Circle, AlertTriangle } from 'lucide-react';
+import { Video, Image as ImageIcon, Circle, AlertTriangle, Globe } from 'lucide-react';
 
 interface ClientCardProps {
   client: Client;
@@ -17,7 +17,12 @@ const ClientCard: React.FC<ClientCardProps> = ({ client, onClick }) => {
   const daysLeft = Math.ceil((renewalDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   const isUrgent = daysLeft <= 3;
   
-  const quota = PACKAGE_QUOTAS[client.package];
+  const defaultQuota = PACKAGE_QUOTAS[client.package] || PACKAGE_QUOTAS.vitrin;
+  const quota = {
+    reels: client.reelsQuota ?? defaultQuota.reels,
+    posts: client.postsQuota ?? defaultQuota.posts,
+    stories: client.storiesQuota ?? defaultQuota.stories
+  };
   
   // Calculate usage percentages
   const reelsUsed = client.usedQuota.reels;
@@ -57,6 +62,12 @@ const ClientCard: React.FC<ClientCardProps> = ({ client, onClick }) => {
           `}>
             {PACKAGE_LABELS[client.package]}
           </span>
+          {client.hasPortalAccess && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded mt-1 ml-1 bg-emerald-50 text-emerald-600 border border-emerald-200">
+              <Globe size={9} />
+              Portal
+            </span>
+          )}
         </div>
       </div>
 
@@ -78,47 +89,69 @@ const ClientCard: React.FC<ClientCardProps> = ({ client, onClick }) => {
 
       {/* Quota Overview */}
       <div className="space-y-2">
-        {/* Reels */}
-        <div className="flex items-center gap-2">
-          <Video size={12} className="text-rose-500" />
-          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-rose-500 rounded-full transition-all"
-              style={{ width: `${(reelsUsed / quota.reels) * 100}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-slate-500 min-w-[32px] text-right">
-            {reelsUsed}/{quota.reels}
-          </span>
-        </div>
-
-        {/* Posts */}
-        <div className="flex items-center gap-2">
-          <ImageIcon size={12} className="text-blue-500" />
-          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-blue-500 rounded-full transition-all"
-              style={{ width: `${(postsUsed / quota.posts) * 100}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-slate-500 min-w-[32px] text-right">
-            {postsUsed}/{quota.posts}
-          </span>
-        </div>
-
-        {/* Stories */}
-        <div className="flex items-center gap-2">
-          <Circle size={12} className="text-purple-500" />
-          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-purple-500 rounded-full transition-all"
-              style={{ width: `${(storiesUsed / quota.stories) * 100}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-slate-500 min-w-[32px] text-right">
-            {storiesUsed}/{quota.stories}
-          </span>
-        </div>
+        {/* Helper function logic inline for cleaner code */}
+        {[
+          { 
+            type: 'reels', 
+            icon: <Video size={12} className="text-rose-500" />, 
+            used: reelsUsed, 
+            completed: client.usedQuota.reelsCompleted || 0,
+            total: quota.reels,
+            color: 'bg-rose-500',
+            lightColor: 'bg-rose-200'
+          },
+          { 
+            type: 'posts', 
+            icon: <ImageIcon size={12} className="text-blue-500" />, 
+            used: postsUsed, 
+            completed: client.usedQuota.postsCompleted || 0,
+            total: quota.posts,
+            color: 'bg-blue-500',
+            lightColor: 'bg-blue-200'
+          },
+          { 
+            type: 'stories', 
+            icon: <Circle size={12} className="text-purple-500" />, 
+            used: storiesUsed, 
+            completed: client.usedQuota.storiesCompleted || 0,
+            total: quota.stories,
+            color: 'bg-purple-500',
+            lightColor: 'bg-purple-200'
+          }
+        ].map((item, idx) => {
+          const completedPercent = Math.min((item.completed / item.total) * 100, 100);
+          const onlyPlannedCount = Math.max(0, item.used - item.completed);
+          const onlyPlannedPercent = Math.min((onlyPlannedCount / item.total) * 100, 100 - completedPercent);
+          
+          return (
+            <div key={idx} className="mb-2 last:mb-0">
+              <div className="flex items-center justify-between text-[10px] mb-1">
+                 <div className="flex items-center gap-1.5">
+                    {item.icon}
+                    <span className="text-slate-600 font-medium capitalize">{item.type === 'posts' ? 'Post' : item.type === 'stories' ? 'Story' : 'Reels'}</span>
+                 </div>
+                 <div className="flex items-center gap-1.5 font-medium">
+                    <span className="text-emerald-600" title="Tamamlanan">{item.completed}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-amber-600" title="Planlanan (Bekleyen)">{onlyPlannedCount}</span>
+                    <span className="text-slate-300">/</span>
+                    <span className="text-slate-400" title="Toplam Kota">{item.total}</span>
+                 </div>
+              </div>
+              
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden flex w-full">
+                <div 
+                  className={`h-full ${item.color} transition-all`}
+                  style={{ width: `${completedPercent}%` }}
+                />
+                <div 
+                  className={`h-full ${item.lightColor} transition-all`}
+                  style={{ width: `${onlyPlannedPercent}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

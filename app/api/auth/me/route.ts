@@ -4,6 +4,12 @@ import { prisma } from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
+interface TokenPayload {
+  userId: string;
+  isClient?: boolean;
+  clientId?: string;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Token'ı cookie'den al
@@ -17,9 +23,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Token'ı doğrula
-    let decoded: { userId: string };
+    let decoded: TokenPayload;
     try {
-      decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
     } catch {
       return NextResponse.json(
         { error: 'Geçersiz oturum' },
@@ -27,17 +33,96 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Kullanıcıyı veritabanından getir
+    // Müşteri girişi mi kontrol et
+    if (decoded.isClient && decoded.clientId) {
+      // Client tablosundan getir
+      const client = await prisma.client.findUnique({
+        where: { id: decoded.clientId },
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          logo: true,
+          packageType: true,
+          startDate: true,
+          renewalDate: true,
+          reelsQuota: true,
+          postsQuota: true,
+          storiesQuota: true,
+          services: {
+            where: {
+              endDate: { gte: new Date() } // Aktif (Devam Eden/Gelecek) Hizmetler
+            },
+            select: {
+              id: true,
+              serviceType: true,
+              startDate: true,
+              endDate: true
+            },
+            orderBy: { endDate: 'asc' }
+          },
+          // Sorumlu Kişiler
+          socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+          designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+          reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+          adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
+        }
+      });
+
+      if (!client) {
+        return NextResponse.json(
+          { error: 'Müşteri bulunamadı' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        user: {
+          id: client.id,
+          username: client.username,
+          name: client.name,
+          role: 'Müşteri', // Frontend roleTitle bekliyordu ama mock user'da öyle. Burası 'role' kalsın, FE'de 'roleTitle' yoksa 'role' kullanılır.
+          roleTitle: 'Müşteri',
+          department: '',
+          avatar: client.logo,
+          isAdmin: false,
+          isClient: true,
+          clientId: client.id,
+          packageType: client.packageType,
+          reelsQuota: client.reelsQuota,
+          postsQuota: client.postsQuota,
+          storiesQuota: client.storiesQuota,
+          services: client.services.map((s: any) => ({
+             ...s,
+             startDate: s.startDate.toISOString().split('T')[0],
+             endDate: s.endDate.toISOString().split('T')[0]
+          })),
+          // Sorumlu Ekip
+          socialUser: client.socialUser,
+          designerUser: client.designerUser,
+          reelsUser: client.reelsUser,
+          adsUser: client.adsUser
+        }
+      });
+    }
+
+    // Normal kullanıcı (ekip üyesi)
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
         id: true,
         username: true,
         name: true,
-        role: true,
-        department: true,
+        roleTitle: true,
+        // department: true, // Removed
         avatar: true,
-        isAdmin: true
+        isAdmin: true,
+        capabilities: {
+          select: {
+            type: true,
+            price: true
+          }
+        }
       }
     });
 
@@ -48,7 +133,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ user });
+    return NextResponse.json({
+      user: {
+        ...user,
+        isClient: false
+      }
+    });
   } catch (error) {
     console.error('Auth me error:', error);
     return NextResponse.json(

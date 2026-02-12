@@ -48,8 +48,7 @@ interface ApiTask {
   staffId: string;
   staffName: string;
   staffAvatar: string | null;
-  staffRole?: string;
-  staffDepartment?: string;
+  staffRoleTitle?: string;
   createdAt: string;
 }
 
@@ -57,8 +56,7 @@ interface ApiTask {
 interface ApiUser {
   id: string;
   name: string;
-  role: string;
-  department: string;
+  roleTitle: string;
   avatar: string | null;
 }
 
@@ -230,7 +228,7 @@ export default function TasksPage() {
 
   // Group tasks by staff member
   const tasksByStaff = useMemo(() => {
-    const grouped: Record<string, { staff: { id: string; name: string; avatar: string | null; role: string; department: string }; tasks: ApiTask[] }> = {};
+    const grouped: Record<string, { staff: { id: string; name: string; avatar: string | null; roleTitle: string }; tasks: ApiTask[] }> = {};
     
     filteredTasks.forEach(task => {
       if (!grouped[task.staffId]) {
@@ -239,8 +237,7 @@ export default function TasksPage() {
             id: task.staffId,
             name: task.staffName,
             avatar: task.staffAvatar,
-            role: task.staffRole || '',
-            department: task.staffDepartment || ''
+            roleTitle: task.staffRoleTitle || '',
           },
           tasks: []
         };
@@ -286,7 +283,7 @@ export default function TasksPage() {
     }
   };
 
-  const StaffCard = ({ staffInfo, staffTasks }: { staffInfo: { id: string; name: string; avatar: string | null; role: string; department: string }; staffTasks: ApiTask[] }) => {
+  const StaffCard = ({ staffInfo, staffTasks }: { staffInfo: { id: string; name: string; avatar: string | null; roleTitle: string }; staffTasks: ApiTask[] }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
     const tamamlandiCount = staffTasks.filter(t => t.status === 'tamamlandi').length;
@@ -309,17 +306,17 @@ export default function TasksPage() {
               <img 
                 src={staffInfo.avatar} 
                 alt={staffInfo.name}
-                className="w-12 h-12 rounded-full border-2 border-white shadow-sm"
+                className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover flex-shrink-0"
               />
             ) : (
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0 shadow-sm border-2 border-white">
                 {staffInfo.name.charAt(0)}
               </div>
             )}
             <div className="text-left w-full sm:w-auto">
               <h3 className="font-semibold text-slate-900">{staffInfo.name}</h3>
               <p className="text-xs text-slate-500">
-                {staffInfo.role} {staffInfo.department ? `• ${DEPARTMENT_LABELS[staffInfo.department as keyof typeof DEPARTMENT_LABELS] || staffInfo.department}` : ''}
+                {staffInfo.roleTitle}
               </p>
             </div>
           </div>

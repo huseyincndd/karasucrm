@@ -9,6 +9,9 @@ export interface JWTPayload {
   name: string;
   isAdmin: boolean;
   department: string;
+  // Müşteri portalı için
+  isClient?: boolean;
+  clientId?: string;
 }
 
 /**

@@ -26,8 +26,12 @@ export async function GET(request: NextRequest) {
     // Where koşulları oluştur
     const where: Record<string, unknown> = {};
 
+    // Müşteri girişi: sadece kendi görevlerini görsün
+    if (user.isClient && user.clientId) {
+      where.clientId = user.clientId;
+    }
     // Admin değilse sadece kendi görevleri
-    if (!user.isAdmin) {
+    else if (!user.isAdmin) {
       where.assignedTo = user.userId;
     } else if (staffId) {
       // Admin için staff filtresi
@@ -74,8 +78,7 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             avatar: true,
-            role: true,
-            department: true
+            roleTitle: true
           }
         }
       },
@@ -96,8 +99,8 @@ export async function GET(request: NextRequest) {
       staffId: task.assignedTo,
       staffName: task.assignee.name,
       staffAvatar: task.assignee.avatar,
-      staffRole: task.assignee.role,
-      staffDepartment: task.assignee.department,
+      staffRole: task.assignee.roleTitle,
+      staffDepartment: task.assignee.roleTitle, // Legacy support
       createdAt: task.createdAt
     }));
 

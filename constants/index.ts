@@ -1,8 +1,8 @@
 import { Platform, Status, Task, User } from '@/types';
 
 export const USERS: User[] = [
-  { id: 'u1', name: 'Alex Rivera', role: 'Creative Director', avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026024d' },
-  { id: 'u2', name: 'Sarah Chen', role: 'Social Manager', avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' },
+  { id: 'u1', name: 'Alex Rivera', roleTitle: 'Creative Director', avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026024d' },
+  { id: 'u2', name: 'Sarah Chen', roleTitle: 'Social Manager', avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d' },
 ];
 
 // 15 Major Agency Clients
