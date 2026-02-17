@@ -5,6 +5,8 @@ import { getSalaryPeriod, getPreviousSalaryPeriod } from '@/constants/wallet';
 
 // GET /api/wallet - Cüzdan bilgisi + işlem geçmişi getir
 // Maaş dönemi: Ayın 5'inden bir sonraki ayın 4'üne kadar
+// GET /api/wallet - Cüzdan bilgisi + işlem geçmişi getir
+// Maaş dönemi: Ayın 5'inden bir sonraki ayın 4'üne kadar
 export async function GET(request: NextRequest) {
   const user = verifyAuth(request);
   
@@ -32,126 +34,94 @@ export async function GET(request: NextRequest) {
     const previousPeriod = getPreviousSalaryPeriod(now);
     const activePeriod = periodType === 'previous' ? previousPeriod : currentPeriod;
 
-    // Bu dönemdeki işlemler (görev tarihi VEYA createdAt döneme ait olanlar)
+    // --- CURRENT PERIOD TRANSACTIONS ---
     const transactions = await prisma.walletTransaction.findMany({
       where: {
         userId: targetUserId,
         OR: [
-          // Görev bazlı: task tarihi dönem içinde
-          {
-            task: {
-              date: {
-                gte: activePeriod.start,
-                lte: activePeriod.end,
-              }
-            }
-          },
-          // Hizmet bazlı: task yok, createdAt dönem içinde
-          {
-            taskId: null,
-            createdAt: {
-              gte: activePeriod.start,
-              lte: activePeriod.end,
-            }
-          }
+          { task: { date: { gte: activePeriod.start, lte: activePeriod.end } } },
+          { taskId: null, createdAt: { gte: activePeriod.start, lte: activePeriod.end } }
         ]
       },
       include: {
         task: {
           select: {
-            id: true,
-            title: true,
-            contentType: true,
-            date: true,
-            status: true,
-            client: {
-              select: {
-                id: true,
-                name: true,
-                logo: true,
-              }
-            }
+            id: true, title: true, contentType: true, date: true, status: true,
+            client: { select: { id: true, name: true, logo: true } }
           }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // Bu dönem kazancı
-    const periodEarnings = transactions.reduce((sum: number, t: any) => sum + t.amount, 0);
+    // Bu dönem KAZANÇ (Sadece pozitifler)
+    const periodEarnings = transactions
+      .filter((t: any) => t.amount > 0)
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
 
-    // Toplam kazanç (tüm zamanlar)
-    const totalEarnings = await prisma.walletTransaction.aggregate({
-      where: { userId: targetUserId },
-      _sum: { amount: true },
-    });
-
-    // Önceki dönem kazancı (geçmiş ödemeler için)
+    // --- PREVIOUS PERIOD TRANSACTIONS ---
     const prevPeriodTransactions = await prisma.walletTransaction.findMany({
       where: {
         userId: targetUserId,
         OR: [
-          {
-            task: {
-              date: {
-                gte: previousPeriod.start,
-                lte: previousPeriod.end,
-              }
-            }
-          },
-          {
-            taskId: null,
-            createdAt: {
-              gte: previousPeriod.start,
-              lte: previousPeriod.end,
-            }
-          }
+          { task: { date: { gte: previousPeriod.start, lte: previousPeriod.end } } },
+          { taskId: null, createdAt: { gte: previousPeriod.start, lte: previousPeriod.end } }
         ]
       },
       include: {
         task: {
           select: {
-            id: true,
-            title: true,
-            contentType: true,
-            date: true,
-            status: true,
-            client: {
-              select: {
-                id: true,
-                name: true,
-                logo: true,
-              }
-            }
+            id: true, title: true, contentType: true, date: true, status: true,
+            client: { select: { id: true, name: true, logo: true } }
           }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
-    const prevPeriodEarnings = prevPeriodTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
 
-    // İçerik tipine göre dağılım (aktif dönem)
+    // Önceki dönem KAZANÇ (Sadece pozitifler)
+    const prevPeriodEarnings = prevPeriodTransactions
+      .filter((t: any) => t.amount > 0)
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+    // --- LIFETIME STATS ---
+    const allTransactions = await prisma.walletTransaction.findMany({
+      where: { userId: targetUserId },
+      select: { amount: true }
+    });
+
+    const totalEarnings = allTransactions
+      .filter(t => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalPaid = allTransactions
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    const balance = totalEarnings - totalPaid;
+
+    // --- CONTENT TYPE BREAKDOWN (Active Period Earnings) ---
     const byContentType: Record<string, { total: number; count: number }> = {};
     transactions.forEach((t: any) => {
-      if (!byContentType[t.contentType]) {
-        byContentType[t.contentType] = { total: 0, count: 0 };
+      // Sadece kazançları grafikte göster
+      if (t.amount > 0) {
+        if (!byContentType[t.contentType]) {
+          byContentType[t.contentType] = { total: 0, count: 0 };
+        }
+        byContentType[t.contentType].total += t.amount;
+        byContentType[t.contentType].count += 1;
       }
-      byContentType[t.contentType].total += t.amount;
-      byContentType[t.contentType].count += 1;
     });
 
     // Kullanıcı bilgisi
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
       select: {
-        id: true,
-        name: true,
-        avatar: true,
-        roleTitle: true,
+        id: true, name: true, avatar: true, roleTitle: true,
       }
     });
 
-    // Formatlanmış response
+    // Format helper
     const formatTransaction = (t: any) => ({
       id: t.id,
       amount: t.amount,
@@ -173,16 +143,16 @@ export async function GET(request: NextRequest) {
       user: targetUser ? {
         ...targetUser,
         role: targetUser.roleTitle,
-        department: targetUser.roleTitle, // Legacy support
+        department: targetUser.roleTitle,
       } : null,
-      totalBalance: totalEarnings._sum.amount || 0,
-      periodEarnings,
+      balance, // Net Bakiye (Alacak)
+      totalEarnings, // Toplam Hak Ediş
+      totalPaid,    // Toplam Ödenen
+      periodEarnings, // Bu Dönem Hak Ediş
       periodLabel: activePeriod.label,
-      periodKey: activePeriod.key,
       previousPeriod: {
-        earnings: prevPeriodEarnings,
+        earnings: prevPeriodEarnings, // Geçen Dönem Hak Ediş
         label: previousPeriod.label,
-        taskCount: prevPeriodTransactions.length,
         transactions: prevPeriodTransactions.map(formatTransaction),
       },
       currentPeriod: {

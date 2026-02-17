@@ -76,7 +76,13 @@ export function getSalaryPeriod(date: Date = new Date()): SalaryPeriod {
   const start = new Date(startYear, startMonth, SALARY_DAY, 0, 0, 0, 0);
   const end = new Date(endYear, endMonth, SALARY_DAY - 1, 23, 59, 59, 999);
 
-  const label = `${SALARY_DAY} ${MONTH_NAMES[startMonth]} - ${SALARY_DAY - 1} ${MONTH_NAMES[endMonth]} ${endYear}`;
+  let label = '';
+  if (startYear === endYear) {
+    label = `${SALARY_DAY} ${MONTH_NAMES[startMonth]} - ${SALARY_DAY - 1} ${MONTH_NAMES[endMonth]} ${endYear}`;
+  } else {
+    label = `${SALARY_DAY} ${MONTH_NAMES[startMonth]} ${startYear} - ${SALARY_DAY - 1} ${MONTH_NAMES[endMonth]} ${endYear}`;
+  }
+
   const key = `${startYear}-${String(startMonth + 1).padStart(2, '0')}`;
 
   return { start, end, label, key };

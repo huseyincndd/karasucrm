@@ -37,111 +37,93 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' }
     });
 
-    // Her kullanıcı için cüzdan özetini hesapla
-    const staffWallets = await Promise.all(
-      users.map(async (u) => {
-        // Toplam kazanç (tüm zamanlar)
-        const totalEarnings = await prisma.walletTransaction.aggregate({
-          where: { userId: u.id },
-          _sum: { amount: true },
-        });
+    const userIds = users.map(u => u.id);
 
-        // Bu dönem işlemleri (görev tarihi VEYA createdAt döneme ait)
-        const currentTransactions = await prisma.walletTransaction.findMany({
-          where: {
-            userId: u.id,
-            OR: [
-              {
-                task: {
-                  date: {
-                    gte: currentPeriod.start,
-                    lte: currentPeriod.end,
-                  }
-                }
-              },
-              {
-                taskId: null,
-                createdAt: {
-                  gte: currentPeriod.start,
-                  lte: currentPeriod.end,
-                }
-              }
-            ]
-          },
-          include: {
-            task: {
-              select: {
-                id: true,
-                title: true,
-                contentType: true,
-                date: true,
-                client: {
-                  select: {
-                    name: true,
-                    logo: true,
-                  }
-                }
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        });
+    // 1. Tüm zamanlar toplam bakiye (Gruplanmış)
+    const allTimeStats = await prisma.walletTransaction.groupBy({
+      by: ['userId'],
+      _sum: { amount: true },
+      where: { userId: { in: userIds } }
+    });
 
-        const periodEarnings = currentTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
-
-        // Önceki dönem kazancı
-        const prevTransactions = await prisma.walletTransaction.findMany({
-          where: {
-            userId: u.id,
-            OR: [
-              {
-                task: {
-                  date: {
-                    gte: previousPeriod.start,
-                    lte: previousPeriod.end,
-                  }
-                }
-              },
-              {
-                taskId: null,
-                createdAt: {
-                  gte: previousPeriod.start,
-                  lte: previousPeriod.end,
-                }
-              }
-            ]
-          },
-        });
-        const prevPeriodEarnings = prevTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
-
-        // İçerik tipine göre dağılım (bu dönem)
-        const byContentType: Record<string, { total: number; count: number }> = {};
-        currentTransactions.forEach((t: any) => {
-          if (!byContentType[t.contentType]) {
-            byContentType[t.contentType] = { total: 0, count: 0 };
+    // 2. Bu dönem işlemleri (Toplu çekim)
+    const currentTransactions = await prisma.walletTransaction.findMany({
+      where: {
+        userId: { in: userIds },
+        OR: [
+          { task: { date: { gte: currentPeriod.start, lte: currentPeriod.end } } },
+          { taskId: null, createdAt: { gte: currentPeriod.start, lte: currentPeriod.end } }
+        ]
+      },
+      include: {
+        task: {
+          select: {
+            id: true, title: true, contentType: true, date: true,
+            client: { select: { name: true, logo: true } }
           }
-          byContentType[t.contentType].total += t.amount;
-          byContentType[t.contentType].count += 1;
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 3. Önceki dönem işlemleri (Toplu çekim)
+    const prevTransactions = await prisma.walletTransaction.findMany({
+      where: {
+        userId: { in: userIds },
+        OR: [
+          { task: { date: { gte: previousPeriod.start, lte: previousPeriod.end } } },
+          { taskId: null, createdAt: { gte: previousPeriod.start, lte: previousPeriod.end } }
+        ]
+      }
+    });
+
+    // Verileri işle ve birleştir
+    const staffWallets = users.map(u => {
+        // Kullanıcının verilerini filtrele
+        const userTotal = allTimeStats.find(s => s.userId === u.id)?._sum.amount || 0;
+        
+        const userCurrentTx = currentTransactions.filter(t => t.userId === u.id);
+        const userPrevTx = prevTransactions.filter(t => t.userId === u.id);
+
+        // Bu dönem HAK EDİŞ (Sadece pozitifler)
+        const periodEarnings = userCurrentTx
+          .filter(t => t.amount > 0)
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        // Önceki dönem HAK EDİŞ (Sadece pozitifler)
+        const prevPeriodEarnings = userPrevTx
+          .filter(t => t.amount > 0)
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        // İçerik dağılımı
+        const byContentType: Record<string, { total: number; count: number }> = {};
+        userCurrentTx.forEach((t) => {
+          if (t.amount > 0) { // Sadece kazançlar
+            if (!byContentType[t.contentType]) {
+              byContentType[t.contentType] = { total: 0, count: 0 };
+            }
+            byContentType[t.contentType].total += t.amount;
+            byContentType[t.contentType].count += 1;
+          }
         });
 
         return {
           user: {
             ...u,
             role: u.roleTitle,
-            department: u.roleTitle, // Legacy support
+            department: u.roleTitle,
           },
-          totalBalance: totalEarnings._sum.amount || 0,
+          totalBalance: userTotal,
           periodEarnings,
-          periodTaskCount: currentTransactions.length,
+          periodTaskCount: userCurrentTx.length,
           prevPeriodEarnings,
-          prevPeriodTaskCount: prevTransactions.length,
+          prevPeriodTaskCount: userPrevTx.length,
           byContentType: Object.entries(byContentType).map(([contentType, data]) => ({
             contentType,
             total: data.total,
             count: data.count,
           })),
-          recentTransactions: currentTransactions.map((t: any) => ({
+          recentTransactions: userCurrentTx.slice(0, 5).map((t) => ({
             id: t.id,
             amount: t.amount,
             contentType: t.contentType,
@@ -157,8 +139,7 @@ export async function GET(request: NextRequest) {
             } : null,
           })),
         };
-      })
-    );
+    });
 
     // Toplam istatistikler
     const grandTotal = staffWallets.reduce((sum, sw) => sum + sw.totalBalance, 0);

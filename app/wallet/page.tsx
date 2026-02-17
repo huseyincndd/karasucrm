@@ -244,7 +244,8 @@ export default function WalletPage() {
   
   // Data State
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const [totalBalance, setTotalBalance] = useState(0);
+  const [balance, setBalance] = useState(0); // Net Bakiye
+  const [totalPaid, setTotalPaid] = useState(0); // Toplam Odenen
   const [periodEarnings, setPeriodEarnings] = useState(0);
   const [periodLabel, setPeriodLabel] = useState('');
   const [byContentType, setByContentType] = useState<ContentBreakdown[]>([]);
@@ -294,12 +295,13 @@ export default function WalletPage() {
         const data = await res.json();
         
         setTransactions(data.transactions);
-        setTotalBalance(data.totalBalance);
+        setBalance(data.balance); // Net Bakiye
+        setTotalPaid(data.totalPaid); // Toplam Odenen
         setPeriodEarnings(data.periodEarnings);
         setPeriodLabel(data.periodLabel);
         setByContentType(data.byContentType);
         setWalletUser(data.user);
-        setPrevPeriodEarnings(data.previousPeriod.earnings);
+        setPrevPeriodEarnings(data.previousPeriod.earnings); // Gecen Donem Hakedis
         setPrevPeriodLabel(data.previousPeriod.label);
         setPrevPeriodTransactions(data.previousPeriod.transactions);
       }
@@ -466,22 +468,23 @@ export default function WalletPage() {
 
                    {/* Main Cards Scroll */}
                    <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-5 px-5 snap-x">
-                      <div className="snap-center">
+                      <div className="snap-center flex-1 min-w-[280px]">
                          <GlassBalanceCard 
-                           title="HAKEDİŞ" 
+                           title={isAdmin ? "BU AY ÖDENECEK" : "BU AY ALACAĞIM"} 
                            amount={formatCurrency(periodEarnings)} 
-                           subtext="Bu dönem ödemesi"
+                           subtext={periodLabel}
                            icon={Wallet} 
                            colorClass="bg-slate-900"
                            active
                          />
                       </div>
-                      <div className="snap-center">
+                      
+                      <div className="snap-center flex-1 min-w-[280px]">
                          <GlassBalanceCard 
-                           title="TOPLAM KAZANÇ" 
-                           amount={formatCurrency(totalBalance)} 
-                           subtext="Kayıtlı tüm zamanlar"
-                           icon={TrendingUp} 
+                           title={isAdmin ? "GEÇEN AY HAKEDİŞ" : "GEÇEN AY HAKEDİŞ"} 
+                           amount={formatCurrency(prevPeriodEarnings)} 
+                           subtext={prevPeriodLabel}
+                           icon={History} 
                            colorClass="bg-indigo-500"
                          />
                       </div>
@@ -547,38 +550,36 @@ export default function WalletPage() {
                    </div>
 
                    {/* History Accordion Modern */}
-                   {(prevPeriodEarnings > 0 || prevPeriodTransactions.length > 0) && (
-                      <NeumorphicCard className="overflow-hidden">
-                         <button 
-                           onClick={() => setShowPrevPeriod(!showPrevPeriod)}
-                           className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
-                         >
-                            <div className="flex items-center gap-4">
-                               <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg shadow-slate-900/20">
-                                  <History size={18} />
-                               </div>
-                               <div className="text-left">
-                                  <p className="text-sm font-bold text-slate-900">Geçmiş Dönem</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{prevPeriodLabel}</p>
-                               </div>
+                   <NeumorphicCard className="overflow-hidden">
+                      <button 
+                        onClick={() => setShowPrevPeriod(!showPrevPeriod)}
+                        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+                      >
+                         <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg shadow-slate-900/20">
+                               <History size={18} />
                             </div>
-                            <div className="flex items-center gap-3">
-                               <span className="font-black text-slate-900 bg-slate-100 px-3 py-1 rounded-lg text-xs">{formatCurrency(prevPeriodEarnings)}</span>
-                               <ChevronDown size={18} className={`text-slate-400 transition-transform duration-300 ${showPrevPeriod ? 'rotate-180' : ''}`} />
+                            <div className="text-left">
+                               <p className="text-sm font-bold text-slate-900">Geçmiş Dönem</p>
+                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{prevPeriodLabel}</p>
                             </div>
-                         </button>
-                         
-                         {showPrevPeriod && (
-                            <div className="border-t border-slate-100 bg-slate-50/30 px-4 py-2 animate-in slide-in-from-top-2">
-                               {prevPeriodTransactions.length === 0 ? (
-                                  <p className="text-center text-xs text-slate-400 py-4 font-medium">Bu dönem için detay bulunamadı.</p>
-                               ) : (
-                                  prevPeriodTransactions.map(tx => <TransactionRow key={tx.id} tx={tx} />)
-                               )}
-                            </div>
-                         )}
-                      </NeumorphicCard>
-                   )}
+                         </div>
+                         <div className="flex items-center gap-3">
+                            <span className="font-black text-slate-900 bg-slate-100 px-3 py-1 rounded-lg text-xs">{formatCurrency(prevPeriodEarnings)}</span>
+                            <ChevronDown size={18} className={`text-slate-400 transition-transform duration-300 ${showPrevPeriod ? 'rotate-180' : ''}`} />
+                         </div>
+                      </button>
+                      
+                      {showPrevPeriod && (
+                         <div className="border-t border-slate-100 bg-slate-50/30 px-4 py-2 animate-in slide-in-from-top-2">
+                            {prevPeriodTransactions.length === 0 ? (
+                               <p className="text-center text-xs text-slate-400 py-4 font-medium">Bu dönem için detay bulunamadı.</p>
+                            ) : (
+                               prevPeriodTransactions.map(tx => <TransactionRow key={tx.id} tx={tx} />)
+                            )}
+                         </div>
+                      )}
+                   </NeumorphicCard>
 
                 </div>
              )}
