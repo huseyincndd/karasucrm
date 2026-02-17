@@ -63,7 +63,7 @@ export default function LoginPage() {
           <div className="px-8 pt-10 pb-6 text-center">
             {/* Logo */}
             <img 
-              src="https://villaqrmenu.b-cdn.net/447297083_1488295202123950_879512158476665056_n.jpg" 
+              src="https://villaqrmenu.b-cdn.net/IMG_5221.JPG" 
               alt="Karasu Reklam"
               className="w-24 h-24 rounded-2xl shadow-xl shadow-indigo-500/20 mb-6 object-cover mx-auto"
             />

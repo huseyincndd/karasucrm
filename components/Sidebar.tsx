@@ -59,7 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800 flex-shrink-0">
         <Link href="/" className="flex items-center gap-2.5 text-white font-semibold text-lg hover:opacity-90 transition-opacity">
           <img 
-            src="https://villaqrmenu.b-cdn.net/447297083_1488295202123950_879512158476665056_n.jpg" 
+            src="https://villaqrmenu.b-cdn.net/IMG_5221.JPG" 
             alt="Karasu Reklam" 
             className="w-8 h-8 rounded-lg object-cover shadow-sm" 
           />
