@@ -25,12 +25,15 @@ const ClientCard: React.FC<ClientCardProps> = ({ client, onClick }) => {
   };
   
   // Assigned Staff (if available)
-  const assignedStaff = [
-    client.socialUser,
-    client.designerUser,
-    client.reelsUser,
-    client.adsUser
-  ].filter(Boolean);
+  const allStaff = [
+    ...(client.socialUsers || []),
+    ...(client.designerUsers || []),
+    ...(client.reelsUsers || []),
+    ...(client.adsUsers || [])
+  ];
+
+  // Deduplicate by ID
+  const assignedStaff = Array.from(new Map(allStaff.map(item => [item.id, item])).values());
 
   // Helper for progress bar with detailed stats
   const renderQuotaItem = (

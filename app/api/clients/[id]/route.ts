@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     
-    const client = await prisma.client.findUnique({
+    const client: any = await prisma.client.findUnique({
       where: { id },
       include: {
         tasks: {
@@ -41,11 +41,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           },
           orderBy: { date: 'asc' }
         },
-        // Sorumlu Kişilerin Bilgilerini Getir
-        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        // Sorumlu Kişilerin Bilgilerini Getir (Array)
+        socialUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
         // Hizmet Kayıtları
         services: {
           include: {
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         startDate: client.startDate.toISOString().split('T')[0],
         renewalDate: client.renewalDate.toISOString().split('T')[0],
         
-        // Atama bilgileri zaten include ile geldi
+        // Atamalar include ile geliyor
         
         usedQuota,
         plannedDates,
@@ -133,11 +133,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       renewalDate, 
       username, 
       password,
-      socialUserId,
-      designerUserId,
-      reelsUserId,
-      adsUserId,
-      adsPeriod
+      // Array IDs for update
+      socialUserIds,
+      designerUserIds,
+      reelsUserIds,
+      adsUserIds,
+      adsPeriod,
+      // Custom quotas
+      reelsQuota,
+      postsQuota,
+      storiesQuota
     } = body;
 
     // Müşteri var mı kontrol
@@ -150,11 +155,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Güncelleme verisi hazırla
-    const updateData: Record<string, unknown> = {};
+    const updateData: any = {};
     if (name) updateData.name = name;
     if (logo !== undefined) updateData.logo = logo || null;
     if (packageType) {
-      const validPackages = ['vitrin', 'plus', 'premium'];
+      const validPackages = ['vitrin', 'plus', 'premium', 'custom'];
       if (!validPackages.includes(packageType)) {
         return NextResponse.json(
           { error: 'Geçersiz paket tipi' },
@@ -166,12 +171,27 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (startDate) updateData.startDate = new Date(startDate);
     if (renewalDate) updateData.renewalDate = new Date(renewalDate);
     
-    // Yeni Atama Alanları
-    if (socialUserId !== undefined) updateData.socialUserId = socialUserId || null;
-    if (designerUserId !== undefined) updateData.designerUserId = designerUserId || null;
-    if (reelsUserId !== undefined) updateData.reelsUserId = reelsUserId || null;
-    if (adsUserId !== undefined) updateData.adsUserId = adsUserId || null;
+    // Update relationships (Many-to-Many)
+    // Using set to replace current relations with new list
+    if (socialUserIds !== undefined) {
+       updateData.socialUsers = { set: socialUserIds.map((uid: string) => ({ id: uid })) };
+    }
+    if (designerUserIds !== undefined) {
+       updateData.designerUsers = { set: designerUserIds.map((uid: string) => ({ id: uid })) };
+    }
+    if (reelsUserIds !== undefined) {
+       updateData.reelsUsers = { set: reelsUserIds.map((uid: string) => ({ id: uid })) };
+    }
+    if (adsUserIds !== undefined) {
+       updateData.adsUsers = { set: adsUserIds.map((uid: string) => ({ id: uid })) };
+    }
+
     if (adsPeriod !== undefined) updateData.adsPeriod = adsPeriod || null;
+    
+    // Update Quotas
+    if (reelsQuota !== undefined) updateData.reelsQuota = Number(reelsQuota);
+    if (postsQuota !== undefined) updateData.postsQuota = Number(postsQuota);
+    if (storiesQuota !== undefined) updateData.storiesQuota = Number(storiesQuota);
 
     // Müşteri portalı giriş bilgileri
     if (username !== undefined) {
@@ -209,14 +229,40 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.password = await bcrypt.hash(password, 12);
     }
 
-    const client = await prisma.client.update({
+    const client: any = await prisma.client.update({
       where: { id },
       data: updateData,
       include: {
-        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
+        socialUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        tasks: {
+          select: {
+            contentType: true,
+            date: true
+          }
+        }
+      }
+    });
+
+    // usedQuota ve plannedDates hesapla
+    const usedQuota = {
+      reels: client.tasks.filter((t: any) => t.contentType === 'reels').length,
+      posts: client.tasks.filter((t: any) => t.contentType === 'posts').length,
+      stories: client.tasks.filter((t: any) => t.contentType === 'stories').length
+    };
+
+    const plannedDates: Record<string, string[]> = {
+      reels: [],
+      posts: [],
+      stories: []
+    };
+    
+    client.tasks.forEach((task: any) => {
+      const dateStr = task.date.toISOString().split('T')[0];
+      if (plannedDates[task.contentType]) {
+        plannedDates[task.contentType].push(dateStr);
       }
     });
 
@@ -225,11 +271,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...client,
         password: undefined, // Şifreyi response'da gönderme
         startDate: client.startDate.toISOString().split('T')[0],
-        renewalDate: client.renewalDate.toISOString().split('T')[0]
+        renewalDate: client.renewalDate.toISOString().split('T')[0],
+        usedQuota,
+        plannedDates
       }
     });
   } catch (error) {
     console.error('Client PUT error:', error);
+    console.error(error); // Detailed logs
     return NextResponse.json(
       { error: 'Müşteri güncellenirken hata oluştu' },
       { status: 500 }

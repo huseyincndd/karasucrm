@@ -515,80 +515,80 @@ export default function PlansPage() {
             )}
 
             {/* Sorumlu Kişiler */}
-            {(user?.socialUser || user?.designerUser || user?.reelsUser || user?.adsUser) && (
+            {((user?.socialUsers?.length || 0) > 0 || (user?.designerUsers?.length || 0) > 0 || (user?.reelsUsers?.length || 0) > 0 || (user?.adsUsers?.length || 0) > 0) && (
               <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-5 shadow-sm mt-6">
                 <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                   <Users size={16} className="text-indigo-500" />
                   Proje Ekibi
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Sosyal Medya Yöneticisi */}
-                  {user.socialUser && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
+                  {/* Sosyal Medya Yöneticileri */}
+                  {user?.socialUsers?.map(staff => (
+                    <div key={staff.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
                       <div className="w-10 h-10 rounded-full bg-amber-100 flex-shrink-0 flex items-center justify-center text-amber-700 font-bold text-sm overflow-hidden border border-amber-200">
-                        {user.socialUser.avatar ? (
-                          <img src={user.socialUser.avatar} alt={user.socialUser.name} className="w-full h-full object-cover" />
+                        {staff.avatar ? (
+                          <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
                         ) : (
-                          user.socialUser.name.charAt(0)
+                          staff.name.charAt(0)
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-sm font-medium text-slate-900 truncate" title={user.socialUser.name}>{user.socialUser.name}</h4>
+                        <h4 className="text-sm font-medium text-slate-900 truncate" title={staff.name}>{staff.name}</h4>
                         <p className="text-[10px] text-slate-500 truncate" title="Sosyal Medya Yöneticisi">Sosyal Medya Yöneticisi</p>
                       </div>
                     </div>
-                  )}
+                  ))}
 
-                  {/* Grafik Tasarımcı */}
-                  {user.designerUser && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
+                  {/* Grafik Tasarımcılar */}
+                  {user?.designerUsers?.map(staff => (
+                    <div key={staff.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
                       <div className="w-10 h-10 rounded-full bg-purple-100 flex-shrink-0 flex items-center justify-center text-purple-700 font-bold text-sm overflow-hidden border border-purple-200">
-                        {user.designerUser.avatar ? (
-                          <img src={user.designerUser.avatar} alt={user.designerUser.name} className="w-full h-full object-cover" />
+                        {staff.avatar ? (
+                          <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
                         ) : (
-                          user.designerUser.name.charAt(0)
+                          staff.name.charAt(0)
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-sm font-medium text-slate-900 truncate" title={user.designerUser.name}>{user.designerUser.name}</h4>
+                        <h4 className="text-sm font-medium text-slate-900 truncate" title={staff.name}>{staff.name}</h4>
                         <p className="text-[10px] text-slate-500 truncate" title="Grafik Tasarımcı">Grafik Tasarımcı</p>
                       </div>
                     </div>
-                  )}
+                  ))}
 
-                  {/* Reels Uzmanı */}
-                  {user.reelsUser && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
+                  {/* Reels Uzmanları */}
+                  {user?.reelsUsers?.map(staff => (
+                    <div key={staff.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
                       <div className="w-10 h-10 rounded-full bg-rose-100 flex-shrink-0 flex items-center justify-center text-rose-700 font-bold text-sm overflow-hidden border border-rose-200">
-                        {user.reelsUser.avatar ? (
-                          <img src={user.reelsUser.avatar} alt={user.reelsUser.name} className="w-full h-full object-cover" />
+                        {staff.avatar ? (
+                          <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
                         ) : (
-                          user.reelsUser.name.charAt(0)
+                          staff.name.charAt(0)
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-sm font-medium text-slate-900 truncate" title={user.reelsUser.name}>{user.reelsUser.name}</h4>
+                        <h4 className="text-sm font-medium text-slate-900 truncate" title={staff.name}>{staff.name}</h4>
                         <p className="text-[10px] text-slate-500 truncate" title="Reels Video Uzmanı">Reels Video Uzmanı</p>
                       </div>
                     </div>
-                  )}
+                  ))}
 
-                  {/* Meta Reklam Uzmanı */}
-                  {user.adsUser && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
+                  {/* Meta Reklam Uzmanları */}
+                  {user?.adsUsers?.map(staff => (
+                    <div key={staff.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-indigo-100 transition-colors">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex-shrink-0 flex items-center justify-center text-blue-700 font-bold text-sm overflow-hidden border border-blue-200">
-                        {user.adsUser.avatar ? (
-                          <img src={user.adsUser.avatar} alt={user.adsUser.name} className="w-full h-full object-cover" />
+                        {staff.avatar ? (
+                          <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" />
                         ) : (
-                          user.adsUser.name.charAt(0)
+                          staff.name.charAt(0)
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-sm font-medium text-slate-900 truncate" title={user.adsUser.name}>{user.adsUser.name}</h4>
+                        <h4 className="text-sm font-medium text-slate-900 truncate" title={staff.name}>{staff.name}</h4>
                         <p className="text-[10px] text-slate-500 truncate" title="Meta Reklam Uzmanı">Meta Reklam Uzmanı</p>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             )}

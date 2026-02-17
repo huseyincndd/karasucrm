@@ -17,7 +17,8 @@ import {
   Save,
   LogOut,
   Globe,
-  Briefcase
+  Briefcase,
+  Edit
 } from 'lucide-react';
 import { ContentType, CONTENT_TO_DEPARTMENT } from '@/constants/staff';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,6 +30,7 @@ interface ClientPlannerProps {
   onClose: () => void;
   onUpdate: (client: Client) => void;
   onDelete?: (clientId: string) => void;
+  onEditRequest?: (client: Client) => void;
 }
 
 interface ApiUser {
@@ -72,7 +74,7 @@ interface PendingTask {
 const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 const WEEKDAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
-const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate, onDelete }) => {
+const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate, onDelete, onEditRequest }) => {
   const { user } = useAuth();
   const isAdmin = user?.isAdmin ?? false;
   
@@ -408,6 +410,16 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             </div>
           </div>
           <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+            {/* Düzenle */}
+            {isAdmin && onEditRequest && (
+              <button 
+                onClick={() => onEditRequest(client)}
+                className="p-1.5 md:p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Müşteriyi Düzenle"
+              >
+                <Edit size={16} className="md:w-[18px] md:h-[18px]" />
+              </button>
+            )}
             {/* Hizmet Ekle */}
             {isAdmin && (
               <button 

@@ -39,10 +39,10 @@ export async function GET(request: NextRequest) {
       packageType: true,
       createdAt: true,
       // Team Members
-      socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-      designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-      reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-      adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+      socialUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+      designerUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+      reelsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+      adsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
       // Counts for context
       _count: {
         select: {
@@ -62,12 +62,12 @@ export async function GET(request: NextRequest) {
       clients = await prisma.client.findMany({
         where: {
           OR: [
-            { socialUserId: userId },
-            { designerUserId: userId },
-            { reelsUserId: userId },
-            { adsUserId: userId },
+            { socialUsers: { some: { id: userId } } },
+            { designerUsers: { some: { id: userId } } },
+            { reelsUsers: { some: { id: userId } } },
+            { adsUsers: { some: { id: userId } } },
           ]
-        },
+        } as any,
         orderBy: { name: 'asc' },
         select: selectTeam,
       });

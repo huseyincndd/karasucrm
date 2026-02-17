@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Müşteri girişi mi kontrol et
     if (decoded.isClient && decoded.clientId) {
       // Client tablosundan getir
-      const client = await prisma.client.findUnique({
+      const client: any = await prisma.client.findUnique({
         where: { id: decoded.clientId },
         select: {
           id: true,
@@ -62,11 +62,11 @@ export async function GET(request: NextRequest) {
             orderBy: { endDate: 'asc' }
           },
           // Sorumlu Kişiler
-          socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-          designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-          reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-          adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
-        }
+          socialUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+          designerUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+          reelsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+          adsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } }
+        } as any
       });
 
       if (!client) {
@@ -98,10 +98,10 @@ export async function GET(request: NextRequest) {
              endDate: s.endDate.toISOString().split('T')[0]
           })),
           // Sorumlu Ekip
-          socialUser: client.socialUser,
-          designerUser: client.designerUser,
-          reelsUser: client.reelsUser,
-          adsUser: client.adsUser
+          socialUsers: client.socialUsers,
+          designerUsers: client.designerUsers,
+          reelsUsers: client.reelsUsers,
+          adsUsers: client.adsUsers
         }
       });
     }

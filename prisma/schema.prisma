@@ -77,23 +77,17 @@ model Client {
   username    String?  @unique
   password    String?
 
-  // --- Yeni Atama Sistemi (4'lü Yapı) ---
-  
-  // 1. Sosyal Medya Yöneticisi (Genel Sorumlu)
-  socialUserId String? 
-  socialUser   User?   @relation("SocialResponsible", fields: [socialUserId], references: [id])
+  // 1. Sosyal Medya Yöneticileri (Genel Sorumlu)
+  socialUsers   User[]   @relation("SocialResponsible")
 
-  // 2. Grafik Tasarımcı (Post/Story Görselleri)
-  designerUserId String?
-  designerUser   User?   @relation("DesignResponsible", fields: [designerUserId], references: [id])
+  // 2. Grafik Tasarımcılar (Post/Story Görselleri)
+  designerUsers User[]   @relation("DesignResponsible")
 
-  // 3. Reels Video Uzmanı
-  reelsUserId  String?
-  reelsUser    User?   @relation("ReelsResponsible", fields: [reelsUserId], references: [id])
+  // 3. Reels Video Uzmanları
+  reelsUsers    User[]   @relation("ReelsResponsible")
 
-  // 4. Meta Reklam Uzmanı
-  adsUserId    String?
-  adsUser      User?   @relation("AdsResponsible", fields: [adsUserId], references: [id])
+  // 4. Meta Reklam Uzmanları
+  adsUsers      User[]   @relation("AdsResponsible")
 
   adsPeriod    String? // Reklam Dönemi: "1-15", "1-30"
 

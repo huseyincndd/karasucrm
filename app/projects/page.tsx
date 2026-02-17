@@ -22,10 +22,10 @@ interface Project {
   logo: string | null;
   packageType: string;
   createdAt: string;
-  socialUser: { id: string; name: string; avatar: string | null; roleTitle: string } | null;
-  designerUser: { id: string; name: string; avatar: string | null; roleTitle: string } | null;
-  reelsUser: { id: string; name: string; avatar: string | null; roleTitle: string } | null;
-  adsUser: { id: string; name: string; avatar: string | null; roleTitle: string } | null;
+  socialUsers: { id: string; name: string; avatar: string | null; roleTitle: string }[];
+  designerUsers: { id: string; name: string; avatar: string | null; roleTitle: string }[];
+  reelsUsers: { id: string; name: string; avatar: string | null; roleTitle: string }[];
+  adsUsers: { id: string; name: string; avatar: string | null; roleTitle: string }[];
   _count: {
     tasks: number;
   };
@@ -70,40 +70,44 @@ export default function ProjectsPage() {
     }
   };
 
-  const TeamMemberRow = ({ roleKey, member, label }: { roleKey: string, member: any, label: string }) => {
-    const isMe = user?.id === member?.id;
+  const TeamMemberRow = ({ roleKey, members, label }: { roleKey: string, members: any[], label: string }) => {
+    const hasMembers = members && members.length > 0;
+    const isAssignedToMe = hasMembers && members.some(m => m.id === user?.id);
     
     return (
-      <div className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${isMe ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-slate-50'}`}>
-        {/* Icon Container */}
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isMe ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-          {getRoleIcon(roleKey)}
-        </div>
-        
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
-          {member ? (
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-bold truncate ${isMe ? 'text-indigo-700' : 'text-slate-900'}`}>{member.name}</span>
-              {isMe && <span className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">SEN</span>}
-            </div>
-          ) : (
-            <span className="text-xs text-slate-300 italic font-medium">Atanmadı</span>
-          )}
+      <div className={`flex flex-col gap-2 p-2.5 rounded-xl transition-all ${isAssignedToMe ? 'bg-indigo-50/50 ring-1 ring-indigo-100' : 'hover:bg-slate-50'}`}>
+        <div className="flex items-center gap-3">
+           <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isAssignedToMe ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+             {getRoleIcon(roleKey)}
+           </div>
+           <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+              {!hasMembers && <span className="text-xs text-slate-300 italic font-medium block">Atanmadı</span>}
+           </div>
         </div>
 
-        {/* Avatar */}
-        {member && (
-          <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden flex-shrink-0">
-             {member.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
-             ) : (
-                <div className="w-full h-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
-                  {member.name.charAt(0)}
-                </div>
-             )}
+        {hasMembers && (
+          <div className="pl-11 space-y-2">
+             {members.map(member => {
+                const isMe = user?.id === member.id;
+                return (
+                   <div key={member.id} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full border border-white shadow-sm overflow-hidden flex-shrink-0">
+                           {member.avatar ? (
+                              <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
+                           ) : (
+                              <div className="w-full h-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500">
+                                {member.name.charAt(0)}
+                              </div>
+                           )}
+                        </div>
+                        <span className={`text-xs font-bold truncate ${isMe ? 'text-indigo-700' : 'text-slate-700'}`}>{member.name}</span>
+                      </div>
+                      {isMe && <span className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">SEN</span>}
+                   </div>
+                );
+             })}
           </div>
         )}
       </div>
@@ -199,7 +203,6 @@ export default function ProjectsPage() {
                                {/* Logo */}
                                <div className="w-14 h-14 rounded-2xl bg-white shadow-lg shadow-slate-200/50 p-1 flex items-center justify-center border border-slate-100">
                                   {project.logo ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img src={project.logo} alt={project.name} className="w-full h-full object-contain rounded-xl" />
                                   ) : (
                                     <Briefcase className="text-slate-300" />
@@ -226,22 +229,22 @@ export default function ProjectsPage() {
                             <TeamMemberRow 
                                roleKey="social" 
                                label="Sosyal Medya Yöneticisi" 
-                               member={project.socialUser} 
+                               members={project.socialUsers} 
                             />
                             <TeamMemberRow 
                                roleKey="design" 
                                label="Grafik Tasarımcı" 
-                               member={project.designerUser} 
+                               members={project.designerUsers} 
                             />
                             <TeamMemberRow 
                                roleKey="reels" 
                                label="Reels Uzmanı" 
-                               member={project.reelsUser} 
+                               members={project.reelsUsers} 
                             />
                             <TeamMemberRow 
                                roleKey="ads" 
                                label="Meta Reklam Uzmanı" 
-                               member={project.adsUser} 
+                               members={project.adsUsers} 
                             />
                          </div>
                       </div>

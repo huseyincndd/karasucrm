@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuth, verifyAdmin } from '@/lib/auth';
+import { verifyAdmin } from '@/lib/auth';
 
 // GET /api/clients - Tüm müşterileri listele (Sadece Admin)
 export async function GET(request: NextRequest) {
@@ -24,11 +24,11 @@ export async function GET(request: NextRequest) {
             status: true
           }
         },
-        // Sorumlu Kişilerin Bilgilerini Getir
-        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
+        // Sorumlu Kişilerin Bilgilerini Getir (Artık Array)
+        socialUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -71,10 +71,10 @@ export async function GET(request: NextRequest) {
         postsQuota: client.postsQuota,
         storiesQuota: client.storiesQuota,
         
-        socialUser: client.socialUser,
-        designerUser: client.designerUser,
-        reelsUser: client.reelsUser,
-        adsUser: client.adsUser,
+        socialUsers: client.socialUsers,
+        designerUsers: client.designerUsers,
+        reelsUsers: client.reelsUsers,
+        adsUsers: client.adsUsers,
         adsPeriod: client.adsPeriod,
 
         usedQuota,
@@ -113,10 +113,10 @@ export async function POST(request: NextRequest) {
       packageType, 
       startDate, 
       renewalDate,
-      socialUserId,
-      designerUserId,
-      reelsUserId,
-      adsUserId,
+      socialUserIds,    // Artık Array ID
+      designerUserIds,  // Artık Array ID
+      reelsUserIds,     // Artık Array ID
+      adsUserIds,       // Artık Array ID
       adsPeriod,
       // Custom Quota
       reelsQuota,
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Paket tipi kontrolü
-    const validPackages = ['vitrin', 'plus', 'premium', 'custom']; // 'custom' eklendi
+    const validPackages = ['vitrin', 'plus', 'premium', 'custom']; 
     if (!validPackages.includes(packageType)) {
       return NextResponse.json(
         { error: 'Geçersiz paket tipi.' },
@@ -164,18 +164,19 @@ export async function POST(request: NextRequest) {
         postsQuota: packageType === 'custom' ? Number(postsQuota) : null,
         storiesQuota: packageType === 'custom' ? Number(storiesQuota) : null,
         
-        // Atamalar (Opsiyonel olabilir, yoksa null geçeriz)
-        socialUserId: socialUserId || null,
-        designerUserId: designerUserId || null,
-        reelsUserId: reelsUserId || null,
-        adsUserId: adsUserId || null,
+        // Atamalar (Many-to-Many Connect)
+        socialUsers: socialUserIds?.length ? { connect: socialUserIds.map((id: string) => ({ id })) } : undefined,
+        designerUsers: designerUserIds?.length ? { connect: designerUserIds.map((id: string) => ({ id })) } : undefined,
+        reelsUsers: reelsUserIds?.length ? { connect: reelsUserIds.map((id: string) => ({ id })) } : undefined,
+        adsUsers: adsUserIds?.length ? { connect: adsUserIds.map((id: string) => ({ id })) } : undefined,
+        
         adsPeriod: adsPeriod || null
       },
       include: {
-        socialUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        designerUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        reelsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } },
-        adsUser: { select: { id: true, name: true, avatar: true, roleTitle: true } }
+        socialUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        designerUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        reelsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } },
+        adsUsers: { select: { id: true, name: true, avatar: true, roleTitle: true } }
       }
     });
 

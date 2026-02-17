@@ -39,10 +39,11 @@ export interface User {
   capabilities?: { type: string; price: number }[];
   
   // Responsible Staff
-  socialUser?: ClientAssignee;
-  designerUser?: ClientAssignee;
-  reelsUser?: ClientAssignee;
-  adsUser?: ClientAssignee;
+  // Responsible Staff
+  socialUsers?: ClientAssignee[];
+  designerUsers?: ClientAssignee[];
+  reelsUsers?: ClientAssignee[];
+  adsUsers?: ClientAssignee[];
 }
 
 export interface ClientService {
@@ -135,9 +136,9 @@ export interface Client {
   portalUsername?: string | null;
 
   // Sorumlu Kişiler
-  socialUser?: ClientAssignee | null;
-  designerUser?: ClientAssignee | null;
-  reelsUser?: ClientAssignee | null;
-  adsUser?: ClientAssignee | null;
+  socialUsers?: ClientAssignee[];
+  designerUsers?: ClientAssignee[];
+  reelsUsers?: ClientAssignee[];
+  adsUsers?: ClientAssignee[];
   adsPeriod?: string | null;
 }

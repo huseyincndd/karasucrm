@@ -43,10 +43,10 @@ interface ApiClient {
   createdAt: string;
   
   // Sorumlu Kişiler
-  socialUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
-  designerUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
-  reelsUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
-  adsUser?: { id: string, name: string, avatar: string | null, roleTitle: string } | null;
+  socialUsers?: { id: string, name: string, avatar: string | null, roleTitle: string }[];
+  designerUsers?: { id: string, name: string, avatar: string | null, roleTitle: string }[];
+  reelsUsers?: { id: string, name: string, avatar: string | null, roleTitle: string }[];
+  adsUsers?: { id: string, name: string, avatar: string | null, roleTitle: string }[];
   adsPeriod?: string | null;
   reelsQuota?: number;
   postsQuota?: number;
@@ -71,10 +71,10 @@ const mapApiClientToClient = (apiClient: ApiClient): Client => ({
   storiesQuota: apiClient.storiesQuota,
   
   // Yeni Alanlar
-  socialUser: apiClient.socialUser,
-  designerUser: apiClient.designerUser,
-  reelsUser: apiClient.reelsUser,
-  adsUser: apiClient.adsUser,
+  socialUsers: apiClient.socialUsers,
+  designerUsers: apiClient.designerUsers,
+  reelsUsers: apiClient.reelsUsers,
+  adsUsers: apiClient.adsUsers,
   adsPeriod: apiClient.adsPeriod,
 });
 
@@ -89,6 +89,7 @@ export default function ClientsPage() {
   
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -177,6 +178,40 @@ export default function ClientsPage() {
     setSelectedClient(updatedClient);
   };
 
+  // Müşteri özelliklerini güncelle (Edit Modal'dan)
+  const handleAttributesUpdate = async (id: string, data: any) => {
+    try {
+      setSaving(true);
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (!res.ok) {
+        const resData = await res.json();
+        throw new Error(resData.error || 'Güncelleme başarısız');
+      }
+
+      const resData = await res.json();
+      const updatedClient = mapApiClientToClient(resData.client);
+      
+      setClients(prev => prev.map(c => c.id === id ? updatedClient : c));
+      setShowAddModal(false);
+      setEditingClient(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Bir hata oluştu');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditRequest = (client: Client) => {
+     setEditingClient(client);
+     setSelectedClient(null); // Close planner
+     setShowAddModal(true);
+  };
+
   // Yeni müşteri ekle
   const handleAddClient = async (data: any) => {
     try {
@@ -193,10 +228,10 @@ export default function ClientsPage() {
         renewalDate: renewalDate.toISOString().split('T')[0],
         
         // Yeni Atamalar
-        socialUserId: data.socialUserId,
-        designerUserId: data.designerUserId,
-        reelsUserId: data.reelsUserId,
-        adsUserId: data.adsUserId,
+        socialUserIds: data.socialUserIds,
+        designerUserIds: data.designerUserIds,
+        reelsUserIds: data.reelsUserIds,
+        adsUserIds: data.adsUserIds,
         adsPeriod: data.adsPeriod,
         
         // Custom Quota
@@ -410,14 +445,17 @@ export default function ClientsPage() {
           onClose={() => setSelectedClient(null)}
           onUpdate={handleClientUpdate}
           onDelete={isAdmin ? handleDeleteClient : undefined}
+          onEditRequest={handleEditRequest}
         />
       )}
 
       {/* Add Client Modal */}
       <AddClientModal
         isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={() => { setShowAddModal(false); setEditingClient(null); }}
         onAdd={handleAddClient}
+        onUpdate={handleAttributesUpdate}
+        clientToEdit={editingClient}
       />
     </div>
   );
