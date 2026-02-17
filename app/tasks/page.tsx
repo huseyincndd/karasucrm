@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -13,28 +13,22 @@ import {
   CheckCircle2,
   Hourglass,
   ChevronDown,
-  Filter,
-  Users,
   AlertTriangle,
   Send,
   Loader2,
   RefreshCw,
   Check,
-  Menu // Added Menu icon for mobile toggle
+  Menu,
 } from 'lucide-react';
 import { 
   TaskStatus,
   ContentType,
   CONTENT_TYPE_LABELS,
-  CONTENT_TYPE_COLORS,
-  DEPARTMENT_LABELS
+  CONTENT_TYPE_COLORS
 } from '@/constants/staff';
 
-// ===== GÖREVLER SAYFASI =====
-// Admin: Tüm ekip üyelerinin görevlerini görür ve filtreleyebilir
-// Normal kullanıcı: Sadece kendi görevlerini görür
+// ===== TİPLER & LOGIC (Mantık Değişmedi) =====
 
-// API'den gelen task tipi
 interface ApiTask {
   id: string;
   title: string | null;
@@ -52,7 +46,6 @@ interface ApiTask {
   createdAt: string;
 }
 
-// API'den gelen user tipi (staff olarak kullanılacak)
 interface ApiUser {
   id: string;
   name: string;
@@ -60,40 +53,39 @@ interface ApiUser {
   avatar: string | null;
 }
 
-// Status configuration matching calendar page
 const getStatusConfig = (status: TaskStatus) => {
   switch (status) {
     case 'beklemede':
       return { 
-        label: 'Beklemede', 
+        label: 'Bekliyor', 
         icon: Clock, 
-        bg: 'bg-slate-50', 
-        text: 'text-slate-600',
-        border: 'border-slate-200'
+        color: 'text-slate-500', // Daha minimal
+        bg: 'bg-slate-100', // Light surface
+        dot: 'bg-slate-400'
       };
     case 'hazir':
       return { 
         label: 'Hazır', 
         icon: Hourglass, 
-        bg: 'bg-amber-50', 
-        text: 'text-amber-600',
-        border: 'border-amber-200'
+        color: 'text-amber-500', 
+        bg: 'bg-amber-100/50', 
+        dot: 'bg-amber-400'
       };
     case 'tamamlandi':
       return { 
-        label: 'Tamamlandı', 
+        label: 'Tamam', 
         icon: CheckCircle2, 
-        bg: 'bg-emerald-50', 
-        text: 'text-emerald-600',
-        border: 'border-emerald-200'
+        color: 'text-emerald-500', 
+        bg: 'bg-emerald-100/50', 
+        dot: 'bg-emerald-400'
       };
     default:
       return { 
-        label: 'Beklemede', 
+        label: 'Bekliyor', 
         icon: Clock, 
-        bg: 'bg-slate-50', 
-        text: 'text-slate-600',
-        border: 'border-slate-200'
+        color: 'text-slate-500',
+        bg: 'bg-slate-100',
+        dot: 'bg-slate-400'
       };
   }
 };
@@ -110,78 +102,199 @@ const getContentIcon = (type: ContentType) => {
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
   const day = date.getDate();
-  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   return `${day} ${months[date.getMonth()]}`;
 };
 
 const getDaysUntil = (dateStr: string) => {
   const date = new Date(dateStr);
   const today = new Date();
-  // Reset time part for accurate day calculation
   today.setHours(0, 0, 0, 0);
   date.setHours(0, 0, 0, 0);
-  
   const diff = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   return diff;
 };
+
+// ===== YENİ BİLEŞENLER (Mobile-First / Social App Style) =====
+
+// ... (imports remain same)
+
+const SocialTaskCard = ({ task, onStatusChange }: { task: ApiTask, onStatusChange: (id: string, status: TaskStatus) => void }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const statusConfig = getStatusConfig(task.status as TaskStatus);
+  const StatusIcon = statusConfig.icon;
+  const ContentIcon = getContentIcon(task.contentType as ContentType);
+  const contentColors = CONTENT_TYPE_COLORS[task.contentType as ContentType] || CONTENT_TYPE_COLORS.posts;
+  const daysUntil = getDaysUntil(task.date);
+  const isUrgent = daysUntil <= 1 && task.status === 'beklemede';
+  const shouldPublish = daysUntil === 0 && task.status === 'hazir';
+
+  // Click outside to close menu ref
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
+  return (
+    <div className={`relative mb-3 last:mb-0 transition-all touch-pan-y ${isMenuOpen ? 'z-50' : 'z-0'} ${!isMenuOpen ? 'active:scale-[0.99]' : ''}`}>
+      {/* CARD CONTAINER - iOS Style 'Inset Grouped' Look */}
+      <div className={`
+        bg-white rounded-2xl p-4 shadow-sm border border-slate-100/80
+        flex items-stretch gap-4 relative
+        ${isUrgent ? 'ring-1 ring-rose-200 bg-rose-50/10' : ''}
+        ${shouldPublish ? 'ring-1 ring-indigo-200 bg-indigo-50/10' : ''}
+      `}>
+         
+         {/* LEFT VISUAL (Logo + Type Badge) */}
+        <div className="relative flex-shrink-0 self-start">
+          {task.clientLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={task.clientLogo} alt={task.clientName} className="w-12 h-12 rounded-xl object-cover shadow-sm bg-slate-50" />
+          ) : (
+             <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-lg">
+                {task.clientName.charAt(0)}
+             </div>
+          )}
+          {/* Badge */}
+          <div className={`absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center ${contentColors.bg} shadow-sm z-10`}>
+             <ContentIcon size={12} className={contentColors.text} />
+          </div>
+        </div>
+
+        {/* MIDDLE CONTENT */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+          <div className="flex items-center gap-2">
+            <h4 className="font-bold text-slate-800 text-base truncate leading-tight">
+               {task.clientName}
+            </h4>
+            {/* Urgent / Status Tags inline */}
+            {isUrgent && <span className="bg-rose-100 text-rose-600 text-[10px] font-bold px-1.5 py-0.5 rounded-md animate-pulse">ACİL</span>}
+            {shouldPublish && <span className="bg-indigo-100 text-indigo-600 text-[10px] font-bold px-1.5 py-0.5 rounded-md animate-pulse">PAYLAŞ</span>}
+          </div>
+
+          {/* Subtitle / Title */}
+          <div className="text-sm text-slate-500 truncate font-medium">
+             {task.title || CONTENT_TYPE_LABELS[task.contentType as ContentType] || 'İçerik'}
+          </div>
+
+          {/* Date & Countdown */}
+          <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+             <Calendar size={11} />
+             <span>{formatDate(task.date)}</span>
+             {daysUntil >= 0 && daysUntil <= 5 && task.status !== 'tamamlandi' && (
+               <>
+                 <span className="w-1 h-1 rounded-full bg-slate-300" />
+                 <span className={daysUntil <= 1 ? 'text-rose-500 font-bold' : ''}>
+                   {daysUntil === 0 ? 'Bugün' : `${daysUntil} gün`}
+                 </span>
+               </>
+             )}
+          </div>
+        </div>
+
+        {/* RIGHT ACTION BUTTON (Dynamic Pill) */}
+        <div className="flex flex-col justify-center relative">
+           <button
+             onClick={(e) => {
+                e.stopPropagation();
+                setIsMenuOpen(!isMenuOpen);
+             }}
+             className={`
+               h-9 pl-3 pr-2.5 rounded-full flex items-center gap-1.5 text-xs font-bold transition-all relative z-10
+               ${statusConfig.bg} ${statusConfig.color}
+               ${!isMenuOpen ? 'active:scale-95' : ''}
+             `}
+           >
+             <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
+             <span>{statusConfig.label}</span>
+             <ChevronDown size={12} className={`transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
+           </button>
+
+           {/* DROPDOWN MENU - Properly Positioned */}
+           {isMenuOpen && (
+             <div 
+               ref={menuRef}
+               onMouseDown={(e) => e.stopPropagation()} // Stop visual click-through
+               onClick={(e) => e.stopPropagation()}
+               className="absolute right-0 top-[calc(100%+8px)] w-48 bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 z-50 overflow-hidden ring-1 ring-slate-100 animate-in fade-in zoom-in-95 duration-200 origin-top-right"
+             >
+                {(['beklemede', 'hazir', 'tamamlandi'] as TaskStatus[]).map((s) => {
+                  const cfg = getStatusConfig(s);
+                  const isActive = task.status === s;
+                  return (
+                    <button 
+                     key={s}
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       onStatusChange(task.id, s);
+                       setIsMenuOpen(false);
+                     }}
+                     className={`
+                       w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold border-b border-slate-50 last:border-0 transition-colors cursor-pointer
+                       ${isActive ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50'}
+                     `}
+                    >
+                      <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                      {cfg.label}
+                      {isActive && <Check size={14} className="ml-auto text-slate-900" />}
+                    </button>
+                  )
+                })}
+             </div>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== MAIN PAGE =====
 
 export default function TasksPage() {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.isAdmin ?? false;
   
-  // State
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [staff, setStaff] = useState<ApiUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // States
   const [selectedStaff, setSelectedStaff] = useState<string | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | 'all'>('all');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Fetch tasks from API
+  // Fetch Logic (Same as before)
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Build query params
       const params = new URLSearchParams();
-      if (selectedStaff !== 'all' && isAdmin) {
-        params.append('staffId', selectedStaff);
-      }
-      if (selectedStatus !== 'all') {
-        params.append('status', selectedStatus);
-      }
-      
-      // Active View Logic: Start from 5 days ago to capture recent pending tasks
+      if (selectedStaff !== 'all' && isAdmin) params.append('staffId', selectedStaff);
+      if (selectedStatus !== 'all') params.append('status', selectedStatus);
       const fiveDaysAgo = new Date();
       fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
       params.append('startDate', fiveDaysAgo.toISOString().split('T')[0]);
-      
-      const url = `/api/tasks${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Görevler yüklenemedi');
-      }
-      
+      const res = await fetch(`/api/tasks${params.toString() ? '?' + params.toString() : ''}`);
+      if (!res.ok) throw new Error('Görevler yüklenemedi');
       const data = await res.json();
-      
-      // Client-side filtering: Hide past completed tasks unless specifically filtered
       const todayStr = new Date().toISOString().split('T')[0];
       const filteredResult = data.tasks.filter((t: ApiTask) => {
-        // If user explicitly asks for 'tamamlandi', show them (within the 5-day range)
         if (selectedStatus === 'tamamlandi') return true;
-        
-        // Future & Today always show
         if (t.date >= todayStr) return true;
-        
-        // Past tasks: Hide if completed (Archived)
         return t.status !== 'tamamlandi';
       });
-
       setTasks(filteredResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bir hata oluştu');
@@ -190,10 +303,8 @@ export default function TasksPage() {
     }
   }, [selectedStaff, selectedStatus, isAdmin]);
 
-  // Fetch staff (for filter dropdown)
   const fetchStaff = useCallback(async () => {
-    if (!isAdmin) return; // Non-admins don't need staff list
-    
+    if (!isAdmin) return;
     try {
       const res = await fetch('/api/users');
       if (res.ok) {
@@ -205,7 +316,6 @@ export default function TasksPage() {
     }
   }, [isAdmin]);
 
-  // Initial data fetch
   useEffect(() => {
     if (!authLoading && user) {
       fetchTasks();
@@ -213,23 +323,17 @@ export default function TasksPage() {
     }
   }, [authLoading, user, fetchTasks, fetchStaff]);
 
-  // Filter assignments based on user role (already filtered by API for non-admins)
+  // Derived Values
   const filteredTasks = useMemo(() => {
-    // API already filters for non-admins, but we need local filtering for admins
     let result = tasks;
-    
-    // Apply local filters if needed (for real-time UI updates)
     if (selectedStatus !== 'all') {
       result = result.filter(t => t.status === selectedStatus);
     }
-    
     return result;
   }, [tasks, selectedStatus]);
 
-  // Group tasks by staff member
   const tasksByStaff = useMemo(() => {
     const grouped: Record<string, { staff: { id: string; name: string; avatar: string | null; roleTitle: string }; tasks: ApiTask[] }> = {};
-    
     filteredTasks.forEach(task => {
       if (!grouped[task.staffId]) {
         grouped[task.staffId] = {
@@ -244,11 +348,9 @@ export default function TasksPage() {
       }
       grouped[task.staffId].tasks.push(task);
     });
-    
     return grouped;
   }, [filteredTasks]);
 
-  // Stats
   const stats = useMemo(() => {
     const total = tasks.length;
     const beklemede = tasks.filter(t => t.status === 'beklemede').length;
@@ -256,11 +358,9 @@ export default function TasksPage() {
     const tamamlandi = tasks.filter(t => t.status === 'tamamlandi').length;
     const urgent = tasks.filter(t => getDaysUntil(t.date) <= 1 && t.status === 'beklemede').length;
     const paylasim = tasks.filter(t => getDaysUntil(t.date) === 0 && t.status === 'hazir').length;
-    
     return { total, beklemede, hazir, tamamlandi, urgent, paylasim };
   }, [tasks]);
 
-  // Update task status
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
@@ -268,368 +368,204 @@ export default function TasksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Durum güncellenemedi');
-      }
-
-      // Update local state
-      setTasks(prev => prev.map(t => 
-        t.id === taskId ? { ...t, status: newStatus } : t
-      ));
+      if (!res.ok) throw new Error('Durum güncellenemedi');
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Bir hata oluştu');
     }
   };
 
-  const StaffCard = ({ staffInfo, staffTasks }: { staffInfo: { id: string; name: string; avatar: string | null; roleTitle: string }; staffTasks: ApiTask[] }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
-    const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
-    const tamamlandiCount = staffTasks.filter(t => t.status === 'tamamlandi').length;
-    const beklemedeCount = staffTasks.filter(t => t.status === 'beklemede').length;
-    const urgentCount = staffTasks.filter(t => getDaysUntil(t.date) <= 1 && t.status === 'beklemede').length;
-    const paylasimCount = staffTasks.filter(t => getDaysUntil(t.date) === 0 && t.status === 'hazir').length;
-
-    if (staffTasks.length === 0 && selectedStaff === 'all') return null;
-
-    return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
-        {/* Staff Header */}
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors rounded-t-xl"
-        >
-          <div className="flex items-center gap-3">
-            {staffInfo.avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img 
-                src={staffInfo.avatar} 
-                alt={staffInfo.name}
-                className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0 shadow-sm border-2 border-white">
-                {staffInfo.name.charAt(0)}
-              </div>
-            )}
-            <div className="text-left w-full sm:w-auto">
-              <h3 className="font-semibold text-slate-900">{staffInfo.name}</h3>
-              <p className="text-xs text-slate-500">
-                {staffInfo.roleTitle}
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 mt-2 sm:mt-0 ml-auto sm:ml-0">
-            {/* Task Stats */}
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {paylasimCount > 0 && (
-                <span className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full animate-pulse">
-                  <Send size={12} />
-                  {paylasimCount} Paylaş
-                </span>
-              )}
-              {urgentCount > 0 && (
-                <span className="flex items-center gap-1 px-2 py-1 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">
-                  <AlertTriangle size={12} />
-                  {urgentCount} Acil
-                </span>
-              )}
-              <span className="flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full">
-                {beklemedeCount} Bekliyor
-              </span>
-              <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full">
-                {tamamlandiCount}/{staffTasks.length}
-              </span>
-            </div>
-            
-            <ChevronDown 
-              size={20} 
-              className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-            />
-          </div>
-        </button>
-
-        {/* Tasks List */}
-        {isExpanded && (
-          <div className="border-t border-slate-100">
-            {staffTasks.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 text-sm rounded-b-xl">
-                Bu kullanıcıya atanmış görev yok
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {staffTasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((task, index) => {
-                  const statusConfig = getStatusConfig(task.status as TaskStatus);
-                  const StatusIcon = statusConfig.icon;
-                  const ContentIcon = getContentIcon(task.contentType as ContentType);
-                  const contentColors = CONTENT_TYPE_COLORS[task.contentType as ContentType] || CONTENT_TYPE_COLORS.posts;
-                  const daysUntil = getDaysUntil(task.date);
-                  const isUrgent = daysUntil <= 1 && task.status === 'beklemede';
-                  const shouldPublish = daysUntil === 0 && task.status === 'hazir';
-                  
-                  return (
-                    <div 
-                      key={task.id}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 hover:bg-slate-50 transition-colors last:rounded-b-xl ${isUrgent ? 'bg-rose-50/50' : ''} ${shouldPublish ? 'bg-indigo-50/50' : ''}`}
-                    >
-                      {/* Client Logo */}
-                      {task.clientLogo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img 
-                          src={task.clientLogo} 
-                          alt={task.clientName}
-                          className="w-10 h-10 rounded-lg shadow-sm object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-                          {task.clientName.charAt(0)}
-                        </div>
-                      )}
-                      
-                      {/* Task Info */}
-                      <div className="flex-1 min-w-0 w-full sm:w-auto">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-slate-900 truncate">{task.clientName}</span>
-                          {shouldPublish && (
-                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-600 text-xs font-medium rounded animate-pulse">
-                              <Send size={10} />
-                              PAYLAŞ
-                            </span>
-                          )}
-                          {isUrgent && (
-                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-100 text-rose-600 text-xs font-medium rounded">
-                              <AlertTriangle size={10} />
-                              ACİL
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`flex items-center gap-1 text-xs ${contentColors.text}`}>
-                            <ContentIcon size={12} />
-                            {CONTENT_TYPE_LABELS[task.contentType as ContentType] || task.contentType}
-                          </span>
-                          <span className="text-slate-300">•</span>
-                          <span className="text-xs text-slate-500 flex items-center gap-1">
-                            <Calendar size={12} />
-                            {formatDate(task.date)}
-                          </span>
-                          {daysUntil >= 0 && task.status !== 'tamamlandi' && (
-                            <>
-                              <span className="text-slate-300">•</span>
-                              <span className={`text-xs ${daysUntil <= 1 && task.status === 'beklemede' ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
-                                {daysUntil === 0 ? 'Bugün' : `${daysUntil} gün`}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Status Dropdown */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setActiveDropdownId(activeDropdownId === task.id ? null : task.id)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all hover:scale-105 ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
-                        >
-                          <StatusIcon size={14} />
-                          {statusConfig.label}
-                          <ChevronDown size={14} className="opacity-50" />
-                        </button>
-
-                        {activeDropdownId === task.id && (
-                          <>
-                            <div 
-                              className="fixed inset-0 z-10" 
-                              onClick={() => setActiveDropdownId(null)} 
-                            />
-                            <div className={`absolute left-0 sm:left-auto sm:right-0 w-36 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50 animate-in fade-in zoom-in duration-100 ${index >= staffTasks.length - 2 ? 'bottom-full mb-1 origin-bottom-left sm:origin-bottom-right' : 'top-full mt-1 origin-top-left sm:origin-top-right'}`}>
-                              {(['beklemede', 'hazir', 'tamamlandi'] as TaskStatus[]).map((status) => {
-                                const optConfig = getStatusConfig(status);
-                                const OptIcon = optConfig.icon;
-                                const isSelected = task.status === status;
-                                
-                                return (
-                                  <button
-                                    key={status}
-                                    onClick={() => {
-                                      handleStatusChange(task.id, status);
-                                      setActiveDropdownId(null);
-                                    }}
-                                    className={`
-                                      w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors
-                                      ${isSelected ? 'bg-slate-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
-                                    `}
-                                  >
-                                    <OptIcon size={14} className={isSelected ? 'text-indigo-600' : 'text-slate-400'} />
-                                    {optConfig.label}
-                                    {isSelected && <Check size={12} className="ml-auto" />}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Loading state - AFTER all hooks
+  // Loading State
   if (authLoading) {
     return (
       <div className="flex h-screen w-full bg-slate-50">
-        <Sidebar />
+        <Sidebar isOpen={false} onClose={() => {}} />
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
-            <p className="text-slate-500">Yükleniyor...</p>
-          </div>
+          <Loader2 size={32} className="animate-spin text-slate-400" />
         </div>
       </div>
     );
   }
 
+  // Filter Chips Helper
+  const FilterChip = ({ label, active, onClick, count }: { label: string, active: boolean, onClick: () => void, count?: number }) => (
+    <button 
+      onClick={onClick}
+      className={`
+        relative px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 flex-shrink-0
+        ${active ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' : 'bg-white text-slate-500 border border-slate-100 hover:bg-slate-50'}
+      `}
+    >
+      {label}
+      {count !== undefined && (
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+
   return (
-    <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
+    <div className="flex h-screen w-full bg-[#FAFAFA] text-slate-900 font-sans overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="h-auto md:h-16 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 py-4 md:py-0 gap-4 md:gap-0 flex-shrink-0 z-10">
-          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                <Menu size={24} />
-              </button>
-              <div className="flex items-center gap-2">
-                <CheckSquare size={20} className="text-slate-400" />
-                <h1 className="text-xl font-semibold text-slate-900">
-                  {isAdmin ? 'Görevler' : 'Görevlerim'}
-                </h1>
-              </div>
-            </div>
-            <span className="text-sm text-slate-400">
-              {filteredTasks.length} görev
-            </span>
-            
-            {/* Stats badges */}
-            {stats.paylasim > 0 && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full animate-pulse">
-                <Send size={12} />
-                {stats.paylasim} paylaşılacak
-              </span>
-            )}
-            {stats.urgent > 0 && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 text-xs font-medium rounded-full">
-                <AlertTriangle size={12} />
-                {stats.urgent} acil
-              </span>
-            )}
-            
-            {/* Refresh button */}
-            <button
-              onClick={fetchTasks}
-              disabled={loading}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              title="Yenile"
-            >
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-          
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-            {/* Status Filter (everyone can use) */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
-              <Filter size={14} className="text-slate-400" />
-              <select 
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as TaskStatus | 'all')}
-                className="bg-transparent text-sm text-slate-700 focus:outline-none"
-              >
-                <option value="all">Tüm Durumlar</option>
-                <option value="beklemede">Beklemede</option>
-                <option value="hazir">Hazır</option>
-                <option value="tamamlandi">Tamamlandı</option>
-              </select>
-            </div>
-            
-            {/* Staff Filter (Admin only) */}
-            {isAdmin && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg">
-                <Users size={14} className="text-slate-400" />
-                <select 
-                  value={selectedStaff}
-                  onChange={(e) => {
-                    setSelectedStaff(e.target.value);
-                    // Re-fetch with new filter
-                    setTimeout(fetchTasks, 0);
-                  }}
-                  className="bg-transparent text-sm text-slate-700 focus:outline-none"
+      <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
+        
+        {/* === MOBILE-FIRST HEADER === */}
+        <header className="flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-100 z-20">
+          <div className="max-w-3xl mx-auto w-full">
+            {/* Top Bar */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl active:scale-95 transition-transform"
                 >
-                  <option value="all">Tüm Ekip</option>
-                  {staff.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
-          {/* Error */}
-          {error && (
-            <div className="flex items-center gap-3 p-4 mb-6 bg-rose-50 text-rose-700 rounded-lg">
-              <AlertTriangle size={20} />
-              <span>{error}</span>
-              <button onClick={fetchTasks} className="ml-auto text-sm underline">Tekrar Dene</button>
-            </div>
-          )}
-
-          {/* Loading */}
-          {loading ? (
-            <div className="flex items-center justify-center py-24">
-              <div className="text-center">
-                <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
-                <p className="text-slate-500">Görevler yükleniyor...</p>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-4xl mx-auto space-y-4">
-              {/* Empty State */}
-              {Object.keys(tasksByStaff).length === 0 ? (
-                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                  <CheckSquare size={48} className="mx-auto text-slate-300 mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">Henüz görev yok</h3>
-                  <p className="text-sm text-slate-500">
-                    {isAdmin 
-                      ? 'Müşteri planlamasından görev ekleyebilirsiniz' 
-                      : 'Size atanmış görev bulunmuyor'}
-                  </p>
+                  <Menu size={22} />
+                </button>
+                <div className="flex flex-col">
+                   <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">
+                     {isAdmin ? 'Ekip Görevleri' : 'Görevlerim'}
+                   </h1>
+                   <span className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                     {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' })}
+                   </span>
                 </div>
-              ) : (
-                // Staff Cards
-                Object.values(tasksByStaff).map(({ staff: staffInfo, tasks: staffTasks }) => (
-                  <StaffCard key={staffInfo.id} staffInfo={staffInfo} staffTasks={staffTasks} />
-                ))
+              </div>
+              
+              <button 
+                 onClick={fetchTasks}
+                 className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors active:scale-95"
+              >
+                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            {/* Scrollable Filters (Instagram-style) */}
+            <div className="flex items-center gap-2 overflow-x-auto px-4 pb-3 no-scrollbar mask-gradient-right">
+              {/* Status Filters */}
+              <FilterChip 
+                label="Tümü" 
+                active={selectedStatus === 'all'} 
+                onClick={() => setSelectedStatus('all')} 
+                count={tasks.length}
+              />
+              <FilterChip 
+                label="Bekleyen" 
+                active={selectedStatus === 'beklemede'} 
+                onClick={() => setSelectedStatus('beklemede')} 
+                count={stats.beklemede}
+              />
+               <FilterChip 
+                label="Hazır" 
+                active={selectedStatus === 'hazir'} 
+                onClick={() => setSelectedStatus('hazir')} 
+                count={stats.hazir}
+              />
+              <FilterChip 
+                label="Acil" 
+                active={false} // Just a quick jump filter conceptually, but for now purely visual or could select status
+                onClick={() => { /* Filter logic if needed */ }}
+                count={stats.urgent}
+              />
+              
+              {/* Staff Filter (Admin) - Integrated into scroll */}
+              {isAdmin && (
+                <>
+                  <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0" />
+                  <select 
+                    value={selectedStaff}
+                    onChange={(e) => setSelectedStaff(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-500 focus:outline-none flex-shrink-0 cursor-pointer"
+                  >
+                    <option value="all">Tüm Ekip</option>
+                    {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </>
               )}
             </div>
-          )}
+           </div>
+        </header>
+
+        {/* === SCROLLABLE CONTENT === */}
+        <div className="flex-1 overflow-y-auto scroll-smooth bg-[#FAFAFA]">
+          <div className="max-w-3xl mx-auto w-full px-4 pt-4 pb-24">
+            
+            {/* Alert Banner (If Urgent tasks exist) */}
+            {(stats.urgent > 0 || stats.paylasim > 0) && (
+               <div className="mb-6 grid grid-cols-2 gap-3">
+                  {stats.urgent > 0 && (
+                    <div className="bg-rose-500 rounded-2xl p-3 text-white shadow-lg shadow-rose-500/20 flex items-center justify-between">
+                       <div className="flex flex-col">
+                          <span className="text-2xl font-black leading-none">{stats.urgent}</span>
+                          <span className="text-[10px] font-bold opacity-80 uppercase">Geciken / Acil</span>
+                       </div>
+                       <AlertTriangle size={24} className="opacity-50" />
+                    </div>
+                  )}
+                  {stats.paylasim > 0 && (
+                    <div className="bg-indigo-500 rounded-2xl p-3 text-white shadow-lg shadow-indigo-500/20 flex items-center justify-between">
+                       <div className="flex flex-col">
+                          <span className="text-2xl font-black leading-none">{stats.paylasim}</span>
+                          <span className="text-[10px] font-bold opacity-80 uppercase">Paylaşılacak</span>
+                       </div>
+                       <Send size={24} className="opacity-50" />
+                    </div>
+                  )}
+               </div>
+            )}
+
+            {/* Loading / Empty / List */}
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 size={32} className="animate-spin text-slate-300 mb-3" />
+                <p className="text-xs font-bold text-slate-400 animate-pulse uppercase tracking-wide">Yükleniyor...</p>
+              </div>
+            ) : Object.keys(tasksByStaff).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
+                <CheckSquare size={48} className="text-slate-300 mb-4" />
+                <h3 className="text-lg font-bold text-slate-700">Hiç Görev Yok</h3>
+                <p className="text-sm text-slate-500">Şu an için listeniz bomboş!</p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {Object.values(tasksByStaff).map(({ staff: staffInfo, tasks: staffTasks }) => (
+                  <div key={staffInfo.id}>
+                    {/* Staff Section Title */}
+                    <div className="flex items-center gap-3 mb-3 px-1">
+                       {staffInfo.avatar ? (
+                         // eslint-disable-next-line @next/next/no-img-element
+                         <img src={staffInfo.avatar} className="w-8 h-8 rounded-full border border-white shadow-sm object-cover" alt="" />
+                       ) : (
+                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
+                            {staffInfo.name.charAt(0)}
+                         </div>
+                       )}
+                       <h3 className="text-sm font-bold text-slate-800">{staffInfo.name}</h3>
+                       <span className="ml-auto text-[10px] font-bold bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full">
+                          {staffTasks.length}
+                       </span>
+                    </div>
+
+                    {/* Tasks List */}
+                    <div className="flex flex-col gap-3">
+                      {staffTasks
+                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                        .map((task) => (
+                          <SocialTaskCard key={task.id} task={task} onStatusChange={handleStatusChange} />
+                        ))
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Bottom Safe Area Spacer */}
+            <div className="h-12" />
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

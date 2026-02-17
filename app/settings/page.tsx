@@ -22,13 +22,17 @@ import {
   Menu,
   CheckCircle2,
   Banknote,
-  Briefcase
+  Briefcase,
+  Search,
+  Sparkles,
+  ChevronRight,
+  MoreVertical
 } from 'lucide-react';
 
 // Yetenek Tipleri (Sabit Liste)
 const CAPABILITY_TYPES = [
   { key: 'social_management', label: 'Sosyal Medya Yönetimi' },
-  { key: 'post', label: 'Post / Story Tasarımı' }, // Eskiden "Graphic Design"
+  { key: 'post', label: 'Post / Story Tasarımı' }, 
   { key: 'reels', label: 'Reels Video' },
   { key: 'meta_ads_15', label: 'Meta Reklam (1-15 Gün)' },
   { key: 'meta_ads_30', label: 'Meta Reklam (1-30 Gün)' },
@@ -39,17 +43,17 @@ interface Capability {
   price: number;
 }
 
-// API'den gelen kullanıcı tipi (Yeni Schema'ya göre)
+// API'den gelen kullanıcı tipi
 interface ApiUser {
   id: string;
   username: string;
   name: string;
-  roleTitle: string;    // Yeni: Görünen Unvan
-  baseSalary: number;   // Yeni: Sabit Maaş
+  roleTitle: string;    
+  baseSalary: number;   
   avatar: string | null;
   isAdmin: boolean;
   createdAt: string;
-  capabilities: Capability[]; // Yeni: Yetenekler
+  capabilities: Capability[]; 
 }
 
 interface UserForm {
@@ -57,10 +61,11 @@ interface UserForm {
   username: string;
   password?: string;
   roleTitle: string;
-  baseSalary: string; // Input için string tutuyoruz, gönderirken number yaparız
+  baseSalary: string; 
   isAdmin: boolean;
-  capabilities: Record<string, string>; // type -> price (string olarak)
-  selectedCapabilities: Record<string, boolean>; // type -> checklist durumu
+  capabilities: Record<string, string>; 
+  selectedCapabilities: Record<string, boolean>; 
+  avatar?: string | null;
 }
 
 const SettingsPage: React.FC = () => {
@@ -76,7 +81,7 @@ const SettingsPage: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   
-  // Edit veya New Form State (Tek bir state kullanacağız, modal ile yönetilecek)
+  // Form State
   const [formData, setFormData] = useState<UserForm>({
     name: '',
     username: '',
@@ -85,16 +90,17 @@ const SettingsPage: React.FC = () => {
     baseSalary: '0',
     isAdmin: false,
     capabilities: {},
-    selectedCapabilities: {}
+    selectedCapabilities: {},
+    avatar: null
   });
   
-  const [editingUserId, setEditingUserId] = useState<string | null>(null); // null ise "Yeni Ekle" modundayız
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   
-  // Password visibility
+  // UI States
   const [showPassword, setShowPassword] = useState(false);
-  
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Kullanıcıları API'den yükle
   const fetchUsers = useCallback(async () => {
@@ -118,7 +124,6 @@ const SettingsPage: React.FC = () => {
     }
   }, []);
 
-  // Sayfa yüklendiğinde kullanıcıları çek
   useEffect(() => {
     if (user?.isAdmin) {
       fetchUsers();
@@ -141,8 +146,9 @@ const SettingsPage: React.FC = () => {
       roleTitle: '',
       baseSalary: '0',
       isAdmin: false,
-      capabilities: {},  // Fiyatlar
-      selectedCapabilities: {} // Checkboxlar
+      capabilities: {},  
+      selectedCapabilities: {},
+      avatar: null 
     });
     setEditingUserId(null);
     setShowPassword(false);
@@ -164,21 +170,21 @@ const SettingsPage: React.FC = () => {
     setFormData({
       name: staff.name,
       username: staff.username,
-      password: '', // Şifre boş gelir, değiştirilmek istenirse doldurulur
+      password: '', 
       roleTitle: staff.roleTitle,
       baseSalary: staff.baseSalary.toString(),
       isAdmin: staff.isAdmin,
       capabilities: caps,
-      selectedCapabilities: selected
+      selectedCapabilities: selected,
+      avatar: staff.avatar
     });
     
-    setShowAddModal(true); // Aynı modalı kullanıyoruz
+    setShowAddModal(true);
   };
 
   const handleSave = async () => {
     if (!formData.name || !formData.username || !formData.roleTitle) return;
     
-    // Yeni kullanıcı ise şifre zorunlu
     if (!editingUserId && (!formData.password || formData.password.length < 6)) {
       alert('Şifre en az 6 karakter olmalıdır.');
       return;
@@ -187,9 +193,8 @@ const SettingsPage: React.FC = () => {
     try {
       setSaving(true);
       
-      // Capabilities Array'ini hazırla
       const capabilitiesPayload = Object.keys(formData.selectedCapabilities)
-        .filter(key => formData.selectedCapabilities[key]) // Sadece seçili olanlar
+        .filter(key => formData.selectedCapabilities[key]) 
         .map(key => ({
           type: key,
           price: parseFloat(formData.capabilities[key] || '0')
@@ -198,24 +203,22 @@ const SettingsPage: React.FC = () => {
       const payload = {
         name: formData.name,
         username: formData.username,
-        password: formData.password || undefined, // Boşsa gönderme (edit modunda)
+        password: formData.password || undefined, 
         roleTitle: formData.roleTitle,
         baseSalary: formData.baseSalary,
         isAdmin: formData.isAdmin,
-        avatar: `https://i.pravatar.cc/150?u=${Date.now()}`,
+        avatar: editingUserId ? formData.avatar : `https://i.pravatar.cc/150?u=${Date.now()}`,
         capabilities: capabilitiesPayload
       };
 
       let res;
       if (editingUserId) {
-        // UPDATE
         res = await fetch(`/api/users/${editingUserId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        // CREATE
         res = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -228,7 +231,6 @@ const SettingsPage: React.FC = () => {
         throw new Error(data.error || 'İşlem başarısız');
       }
 
-      // Listeyi güncelle
       await fetchUsers();
       setShowAddModal(false);
       resetForm();
@@ -241,7 +243,6 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Kullanıcı sil
   const handleDeleteStaff = async (id: string) => {
     try {
       setSaving(true);
@@ -268,7 +269,6 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleNameChange = (name: string) => {
-    // Sadece yeni eklerken otomatik username oluştur
     if (!editingUserId) {
       setFormData(prev => ({
         ...prev,
@@ -280,451 +280,485 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Yükleniyor veya admin değilse
+  // Filter & Sort
+  const filteredStaff = staffList
+    .filter(staff => 
+      staff.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      staff.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      staff.roleTitle.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Adminler en üstte
+      if (a.isAdmin && !b.isAdmin) return -1;
+      if (!a.isAdmin && b.isAdmin) return 1;
+      return 0;
+    });
+
   if (authLoading || !user?.isAdmin) {
     return (
-      <div className="flex h-screen bg-slate-100">
-        <Sidebar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
-            <p className="text-slate-500">Yükleniyor...</p>
-          </div>
-        </main>
+      <div className="flex h-screen w-full items-center justify-center bg-[#FAFAFA]">
+        <Loader2 size={32} className="text-slate-300 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
+    <div className="flex h-screen w-full bg-[#FAFAFA] text-slate-900 font-sans overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
-      <main className="flex-1 overflow-auto min-w-0">
-        {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 md:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                <Menu size={24} />
-              </button>
-              <div>
-                <h1 className="text-xl md:text-2xl font-semibold text-slate-900">Ekip Yönetimi</h1>
-                <p className="text-xs md:text-sm text-slate-500 mt-0.5 md:mt-1">Kullanıcı ekle, düzenle ve yeteneklerini tanımla</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              {saveSuccess && (
-                <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-emerald-50 text-emerald-700 rounded-lg animate-pulse">
-                  <Save size={16} />
-                  <span className="text-xs md:text-sm font-medium">Kaydedildi!</span>
-                </div>
-              )}
-              
-              <button
-                onClick={fetchUsers}
-                disabled={loading}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Yenile"
-              >
-                <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-              </button>
-            </div>
-          </div>
-        </div>
+      <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
+        
+        {/* === HEADER (Sticky Glassmorphic) === */}
+        <header className="flex-shrink-0 bg-white/80 backdrop-blur-xl border-b border-slate-100 z-20 sticky top-0">
+          <div className="max-w-[1600px] mx-auto w-full px-5 py-4">
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+               
+               {/* Title & Mobile Menu */}
+               <div className="flex items-center gap-3">
+                  <button onClick={() => setIsSidebarOpen(true)} className="md:hidden w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors">
+                     <Menu size={20} />
+                  </button>
+                  <div>
+                     <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1">Ayarlar & Ekip</h1>
+                     <div className="flex items-center gap-2">
+                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                          Yönetim Paneli
+                       </span>
+                     </div>
+                  </div>
+               </div>
 
-        <div className="p-4 md:p-8">
-          <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
-            {/* Error */}
+               {/* Actions */}
+               <div className="flex items-center gap-3 w-full md:w-auto">
+                  {/* Search */}
+                  <div className="relative flex-1 md:w-64 group">
+                     <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                        <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                     </div>
+                     <input 
+                       type="text" 
+                       placeholder="Personel ara..." 
+                       value={searchQuery}
+                       onChange={(e) => setSearchQuery(e.target.value)}
+                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all outline-none"
+                     />
+                  </div>
+
+                  {/* Refresh */}
+                  <button
+                    onClick={fetchUsers}
+                    disabled={loading}
+                    className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-500 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                  </button>
+                  
+                  {/* Add Button */}
+                  <button 
+                    onClick={() => { resetForm(); setShowAddModal(true); }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-2xl hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-slate-900/20"
+                  >
+                    <Plus size={18} />
+                    <span className="hidden sm:inline">Yeni Personel</span>
+                  </button>
+               </div>
+             </div>
+          </div>
+        </header>
+
+        {/* === CONTENT === */}
+        <div className="flex-1 overflow-y-auto scroll-smooth bg-[#FAFAFA]">
+          <div className="max-w-[1600px] mx-auto w-full px-5 py-8 pb-32">
+            
+            {/* Error Banner */}
             {error && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 p-3 md:p-4 bg-rose-50 text-rose-700 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={18} />
-                  <span className="text-sm">{error}</span>
+              <div className="flex items-center gap-3 p-4 mb-8 bg-rose-50 border border-rose-100 text-rose-700 rounded-2xl shadow-sm animate-in slide-in-from-top-2">
+                <div className="p-2 bg-rose-100 rounded-full">
+                   <AlertTriangle size={18} />
                 </div>
-                <button onClick={fetchUsers} className="text-sm underline sm:ml-auto">Tekrar Dene</button>
+                <span className="font-medium text-sm">{error}</span>
+                <button onClick={fetchUsers} className="ml-auto text-xs font-bold underline hover:no-underline">Tekrar Dene</button>
               </div>
             )}
 
-            {/* Add Staff Button */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
-              <div>
-                <h2 className="text-base md:text-lg font-semibold text-slate-900">Ekip Listesi</h2>
-                <p className="text-xs md:text-sm text-slate-500">{staffList.length} kullanıcı</p>
-              </div>
-              <button
-                onClick={() => {
-                  resetForm();
-                  setShowAddModal(true);
-                }}
-                className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25 w-full sm:w-auto justify-center"
-              >
-                <Plus size={18} />
-                Yeni Personel Ekle
-              </button>
-            </div>
+            {/* Success Toast */}
+            {saveSuccess && (
+               <div className="fixed top-24 right-5 z-40 bg-emerald-500 text-white px-4 py-3 rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
+                  <CheckCircle2 size={20} />
+                  <span className="text-sm font-bold">İşlem Başarılı!</span>
+               </div>
+            )}
 
             {/* Loading */}
-            {loading ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
-                <p className="text-slate-500">Kullanıcılar yükleniyor...</p>
-              </div>
+            {loading && !staffList.length ? (
+               <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
+                 <Loader2 size={40} className="animate-spin text-slate-900 mb-4" />
+                 <p className="text-xs font-black tracking-widest uppercase">Kullanıcılar Yükleniyor...</p>
+               </div>
             ) : (
-              // Staff List (Grid / List)
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {staffList.map((staff) => (
-                  <div key={staff.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
-                    {/* Header */}
-                    <div className="p-5 border-b border-slate-100 flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        {/* Avatar */}
-                        <div className="relative">
-                          {staff.avatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img 
-                              src={staff.avatar} 
-                              alt={staff.name}
-                              className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
-                              {staff.name.charAt(0)}
-                            </div>
-                          )}
-                          {staff.isAdmin && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center border-2 border-white" title="Admin">
-                              <Shield size={10} className="text-white" />
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <h3 className="font-semibold text-slate-900 line-clamp-1" title={staff.name}>{staff.name}</h3>
-                          <p className="text-xs text-slate-500 font-mono">@{staff.username}</p>
-                        </div>
+               <>
+                 {/* Empty State */}
+                 {!loading && filteredStaff.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center py-20 text-center">
+                      <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-6 ring-8 ring-slate-100/50">
+                          {searchQuery ? <Search size={40} className="text-slate-300" /> : <Users size={40} className="text-slate-300" />}
                       </div>
-                      
-                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleStartEdit(staff)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="Düzenle"
+                      <h3 className="text-xl font-black text-slate-900 mb-2">
+                         {searchQuery ? 'Sonuç Bulunamadı' : 'Ekip Listeniz Boş'}
+                      </h3>
+                      <p className="text-slate-500 text-sm mb-8 font-medium max-w-xs mx-auto">
+                         {searchQuery ? 'Arama kriterlerine uygun personel yok.' : 'Yeni ekip arkadaşları ekleyerek CRM sisteminizi güçlendirin.'}
+                      </p>
+                      {!searchQuery && (
+                         <button 
+                           onClick={() => { resetForm(); setShowAddModal(true); }}
+                           className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm shadow-xl shadow-slate-900/20 hover:scale-105 transition-transform"
+                         >
+                           İlk Personeli Ekle
+                         </button>
+                      )}
+                   </div>
+                 ) : (
+                   /* STAFF GRID */
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {filteredStaff.map((staff) => (
+                        <div 
+                          key={staff.id} 
+                          className={`
+                            group relative bg-white rounded-3xl p-5 border shadow-sm hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] hover:-translate-y-1 transition-all duration-300
+                            ${staff.isAdmin ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100'}
+                          `}
                         >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteModal(staff.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Sil"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
+                           {/* Admin Badge */}
+                           {staff.isAdmin && (
+                              <div className="absolute top-4 right-4 z-10">
+                                 <div className="bg-amber-100 text-amber-700 p-1.5 rounded-xl" title="Admin Yetkisi">
+                                    <Shield size={16} />
+                                 </div>
+                              </div>
+                           )}
 
-                    {/* Role & Salary Info */}
-                    <div className="px-5 py-3 bg-slate-50/50 space-y-2">
-                       <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2 text-slate-600">
-                             <Briefcase size={14} />
-                             <span className="font-medium truncate max-w-[120px]" title={staff.roleTitle}>{staff.roleTitle}</span>
-                          </div>
-                          {staff.baseSalary > 0 && (
-                            <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-xs font-semibold">
-                              <Banknote size={12} />
-                              <span>{staff.baseSalary.toLocaleString('tr-TR')} ₺</span>
-                            </div>
-                          )}
-                       </div>
-                    </div>
+                           {/* Header: Avatar & Names */}
+                           <div className="flex flex-col items-center text-center mb-6 pt-2">
+                              <div className="relative mb-4">
+                                {staff.avatar ? (
+                                   // eslint-disable-next-line @next/next/no-img-element
+                                   <img src={staff.avatar} alt={staff.name} className="w-20 h-20 rounded-2xl object-cover shadow-lg shadow-indigo-500/10" />
+                                ) : (
+                                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-2xl font-black text-slate-400">
+                                      {staff.name.charAt(0)}
+                                   </div>
+                                )}
+                                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md">
+                                   <Sparkles size={14} className="text-indigo-500" />
+                                </div>
+                              </div>
+                              
+                              <h3 className="text-lg font-black text-slate-900 leading-tight mb-1">{staff.name}</h3>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">@{staff.username}</p>
+                           </div>
 
-                    {/* Capabilities Tags */}
-                    <div className="px-5 py-4 min-h-[80px]">
-                      <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">Yetenekler</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {staff.capabilities.length > 0 ? (
-                          staff.capabilities.map((cap) => (
-                             <div key={cap.type} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-[10px] text-slate-600 shadow-sm" title={`${cap.price} TL`}>
-                               {CAPABILITY_TYPES.find(t => t.key === cap.type)?.label || cap.type}
-                               <span className="text-indigo-600 font-bold ml-0.5 border-l border-slate-200 pl-1">
-                                 {cap.price}₺
-                               </span>
-                             </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Yetenek tanımlanmamış.</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                           {/* Info Chips */}
+                           <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+                              <div className="px-3 py-1.5 bg-slate-50 rounded-xl text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                 <Briefcase size={14} className="text-indigo-500" />
+                                 {staff.roleTitle || 'Unvan Yok'}
+                              </div>
+                              {staff.baseSalary > 0 && (
+                                <div className="px-3 py-1.5 bg-emerald-50 rounded-xl text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                                   <Banknote size={14} />
+                                   {staff.baseSalary.toLocaleString('tr-TR')} ₺
+                                </div>
+                              )}
+                           </div>
 
-                {/* Empty State */}
-                {staffList.length === 0 && !loading && (
-                  <div className="col-span-full bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <Users size={48} className="mx-auto text-slate-300 mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-700 mb-2">Henüz personel yok</h3>
-                    <p className="text-sm text-slate-500 mb-4">İlk personelinizi ekleyerek başlayın</p>
-                    <button
-                      onClick={() => {
-                        resetForm();
-                        setShowAddModal(true);
-                      }}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-                    >
-                      <Plus size={18} />
-                      Yeni Personel Ekle
-                    </button>
-                  </div>
-                )}
-              </div>
+                           {/* Capabilities/Skills Preview */}
+                           <div className="pt-4 border-t border-slate-50">
+                              <div className="flex items-center justify-between mb-3">
+                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hizmet Fiyatları</span>
+                                 <span className="text-[10px] font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-full">{staff.capabilities.length}</span>
+                              </div>
+                              <div className="flex flex-col gap-1.5 h-[100px] overflow-y-auto pr-1 custom-scrollbar">
+                                 {staff.capabilities.length > 0 ? (
+                                   staff.capabilities.map((cap) => {
+                                      const label = CAPABILITY_TYPES.find(t => t.key === cap.type)?.label || cap.type;
+                                      return (
+                                        <div key={cap.type} className="flex items-center justify-between px-2.5 py-2 bg-slate-50/50 rounded-lg group/cap hover:bg-slate-50 transition-colors">
+                                           <span className="text-[11px] font-bold text-slate-600 truncate max-w-[120px]" title={label}>{label}</span>
+                                           <span className="text-[11px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 tabular-nums">
+                                              {cap.price} ₺
+                                           </span>
+                                        </div>
+                                      );
+                                   })
+                                 ) : (
+                                   <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                                      <span className="text-xs italic">Hizmet tanımlanmamış</span>
+                                   </div>
+                                 )}
+                              </div>
+                           </div>
+
+                           {/* Actions Footer */}
+                           <div className="mt-4 flex items-center gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                             <button 
+                               onClick={() => handleStartEdit(staff)}
+                               className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"
+                             >
+                               <Edit3 size={14} /> Düzenle
+                             </button>
+                             <button 
+                               onClick={() => setShowDeleteModal(staff.id)}
+                               className="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"
+                             >
+                               <Trash2 size={16} />
+                             </button>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                 )}
+               </>
             )}
+
           </div>
         </div>
       </main>
 
-      {/* Add/Edit Modal */}
+      {/* === ADD/EDIT MODAL === */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden my-auto">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-500 to-purple-500">
-              <h3 className="text-base sm:text-lg font-semibold text-white">
-                {editingUserId ? 'Personeli Düzenle' : 'Yeni Personel Ekle'}
-              </h3>
-              <button 
-                onClick={() => setShowAddModal(false)}
-                className="p-1 text-white/70 hover:text-white transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-4 sm:p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-              {/* Temel Bilgiler Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {/* İsim */}
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      <span className="text-rose-500">*</span> İsim Soyisim
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Ad Soyad"
-                    />
-                 </div>
-
-                 {/* Kullanıcı Adı */}
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      <span className="text-rose-500">*</span> Kullanıcı Adı
-                    </label>
-                    <div className="relative">
-                      <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={formData.username}
-                        onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/\s+/g, '.') }))}
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="kullanici.adi"
-                      />
-                    </div>
-                 </div>
-
-                 {/* Şifre (Sadece Create veya İsteğe Bağlı Update) */}
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      {editingUserId ? 'Şifre (Değiştirmek için girin)' : <><span className="text-rose-500">*</span> Şifre</>}
-                    </label>
-                    <div className="relative">
-                      <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={formData.password}
-                        onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                        className="w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder={editingUserId ? '••••••••' : 'En az 6 karakter'}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                 </div>
-
-                 {/* Unvan */}
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      <span className="text-rose-500">*</span> Görünen Unvan
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.roleTitle}
-                      onChange={(e) => setFormData(prev => ({ ...prev, roleTitle: e.target.value }))}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Örn: Sosyal Medya Yöneticisi"
-                    />
-                 </div>
-
-                 {/* Sabit Maaş */}
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                       Sabit Maaş (Aylık)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold">₺</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.baseSalary}
-                        onChange={(e) => setFormData(prev => ({ ...prev, baseSalary: e.target.value }))}
-                        className="w-full pl-8 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">Parça başı çalışıyorsa 0 giriniz.</p>
-                 </div>
-
-                 {/* Admin Yetkisi */}
-                 <div className="flex items-end pb-2">
-                    <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors w-full border border-amber-100">
-                      <input
-                        type="checkbox"
-                        checked={formData.isAdmin}
-                        onChange={(e) => setFormData(prev => ({ ...prev, isAdmin: e.target.checked }))}
-                        className="w-4 h-4 text-amber-600 border-slate-300 rounded focus:ring-amber-500"
-                      />
-                      <div className="flex items-center gap-2">
-                        <Shield size={16} className="text-amber-600" />
-                        <span className="text-sm font-medium text-amber-800">Admin Yetkisi</span>
-                      </div>
-                    </label>
-                 </div>
-              </div>
-
-              {/* YETENEK MATRİSİ */}
-              <div className="border-t border-slate-100 pt-6">
-                <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                   <CheckCircle2 size={16} className="text-indigo-600" />
-                   Yetenekler ve Birim Fiyatlar
-                </h4>
-                <div className="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200">
-                  {CAPABILITY_TYPES.map((cap) => {
-                    const isSelected = formData.selectedCapabilities[cap.key] || false;
-                    
-                    return (
-                      <div key={cap.key} className={`flex items-center justify-between p-3 sm:px-4 transition-colors ${isSelected ? 'bg-white' : ''}`}>
-                         {/* Sol: Checkbox + Label */}
-                         <label className="flex items-center gap-3 cursor-pointer flex-1">
-                            <input 
-                               type="checkbox"
-                               checked={isSelected}
-                               onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setFormData(prev => ({
-                                     ...prev,
-                                     selectedCapabilities: { ...prev.selectedCapabilities, [cap.key]: checked }
-                                  }));
-                               }}
-                               className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                            />
-                            <span className={`text-sm ${isSelected ? 'font-medium text-slate-900' : 'text-slate-500'}`}>
-                               {cap.label}
-                            </span>
-                         </label>
-
-                         {/* Sağ: Fiyat Input (Sadece seçiliyse görünür) */}
-                         {isSelected && (
-                           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-200">
-                              <span className="text-xs text-slate-500 font-medium whitespace-nowrap hidden sm:inline">Birim Fiyat:</span>
-                              <div className="relative w-24 sm:w-32">
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">TL</span>
-                                <input 
-                                  type="number"
-                                  min="0"
-                                  placeholder="0"
-                                  value={formData.capabilities[cap.key] || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setFormData(prev => ({
-                                        ...prev,
-                                        capabilities: { ...prev.capabilities, [cap.key]: val }
-                                    }));
-                                  }}
-                                  className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm text-right pr-8 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </div>
-                           </div>
-                         )}
-                      </div>
-                    );
-                  })}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
+          {/* Modal Content */}
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-auto border border-white/20">
+             
+             {/* Header */}
+             <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                   <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                     {editingUserId ? 'Personeli Düzenle' : 'Yeni Personel Ekle'}
+                   </h3>
+                   <p className="text-sm text-slate-500 font-medium">Bilgileri eksiksiz doldurduğunuzdan emin olun.</p>
                 </div>
-                <p className="text-xs text-slate-400 mt-2 px-1">
-                   * Seçili yetenekler, görev atamalarında personelin listelenmesini sağlar. Fiyatlar otomatik cüzdana işlenir.
-                </p>
-              </div>
-            </div>
-            
-            <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors text-center"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 sm:py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                {editingUserId ? 'Değişiklikleri Kaydet' : 'Personeli Ekle'}
-              </button>
-            </div>
+                <button 
+                  onClick={() => setShowAddModal(false)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+             </div>
+
+             {/* Form Container */}
+             <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                
+                {/* Section: Kimlik */}
+                <div className="space-y-5">
+                   <h4 className="flex items-center gap-2 text-xs font-black text-indigo-600 uppercase tracking-widest">
+                      <User size={14} /> Kimlik Bilgileri
+                   </h4>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-1.5">
+                         <label className="text-xs font-bold text-slate-700">Ad Soyad</label>
+                         <input 
+                           type="text" 
+                           placeholder="Örn: Ahmet Yılmaz"
+                           value={formData.name}
+                           onChange={(e) => handleNameChange(e.target.value)}
+                           className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all placeholder:font-normal"
+                         />
+                      </div>
+                      <div className="space-y-1.5">
+                         <label className="text-xs font-bold text-slate-700">Kullanıcı Adı</label>
+                         <input 
+                           type="text" 
+                           placeholder="username"
+                           value={formData.username}
+                           onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/\s+/g, '.') }))}
+                           className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-medium font-mono text-slate-600 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                         />
+                      </div>
+                      <div className="space-y-1.5">
+                         <label className="text-xs font-bold text-slate-700">Unvan</label>
+                         <input 
+                           type="text" 
+                           placeholder="Örn: Grafik Tasarımcı"
+                           value={formData.roleTitle}
+                           onChange={(e) => setFormData(prev => ({ ...prev, roleTitle: e.target.value }))}
+                           className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                         />
+                      </div>
+                      <div className="space-y-1.5 relative">
+                         <label className="text-xs font-bold text-slate-700">Şifre</label>
+                         <input 
+                           type={showPassword ? 'text' : 'password'}
+                           placeholder={editingUserId ? '••••••••' : 'En az 6 haneli şifre'}
+                           value={formData.password}
+                           onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                           className="w-full pl-10 pr-10 py-3 bg-slate-50 border-none rounded-2xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                         />
+                         <Lock size={16} className="absolute left-3.5 top-[34px] text-slate-400" />
+                         <button 
+                           type="button" 
+                           onClick={() => setShowPassword(!showPassword)}
+                           className="absolute right-3.5 top-[34px] text-slate-400 hover:text-slate-600"
+                         >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                         </button>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Section: Finans & Yetki */}
+                <div className="space-y-5">
+                   <h4 className="flex items-center gap-2 text-xs font-black text-indigo-600 uppercase tracking-widest">
+                      <Shield size={14} /> Yetki ve Maaş
+                   </h4>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-1.5 relative">
+                         <label className="text-xs font-bold text-slate-700">Sabit Maaş</label>
+                         <input 
+                           type="number" 
+                           placeholder="0"
+                           value={formData.baseSalary}
+                           onChange={(e) => setFormData(prev => ({ ...prev, baseSalary: e.target.value }))}
+                           className="w-full pl-8 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                         />
+                         <span className="absolute left-3.5 top-[34px] text-slate-400 font-bold">₺</span>
+                      </div>
+                      <div className="flex items-end">
+                         <label className="w-full flex items-center justify-between p-3 bg-indigo-50 hover:bg-indigo-100 rounded-2xl cursor-pointer transition-colors border-2 border-transparent hover:border-indigo-200">
+                             <div className="flex items-center gap-3">
+                                <div className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${formData.isAdmin ? 'bg-indigo-600 border-indigo-600' : 'border-indigo-300'}`}>
+                                   {formData.isAdmin && <CheckCircle2 size={14} className="text-white" />}
+                                </div>
+                                <div>
+                                   <span className="block text-sm font-bold text-indigo-900">Yönetici Yetkisi</span>
+                                   <span className="block text-xs text-indigo-600/70">Tam erişim sağlar</span>
+                                </div>
+                             </div>
+                             <input 
+                               type="checkbox" 
+                               checked={formData.isAdmin} 
+                               onChange={(e) => setFormData(prev => ({ ...prev, isAdmin: e.target.checked }))}
+                               className="hidden"
+                             />
+                         </label>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Section: Yetenekler */}
+                <div className="space-y-5">
+                   <div className="flex items-center justify-between">
+                      <h4 className="flex items-center gap-2 text-xs font-black text-indigo-600 uppercase tracking-widest">
+                         <Briefcase size={14} /> Yetenekler
+                      </h4>
+                      <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Otomatik Cüzdan</span>
+                   </div>
+                   
+                   <div className="grid grid-cols-1 gap-3">
+                      {CAPABILITY_TYPES.map((cap) => {
+                          const isSelected = formData.selectedCapabilities[cap.key] || false;
+                          return (
+                             <div 
+                               key={cap.key} 
+                               className={`
+                                 relative flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200
+                                 ${isSelected ? 'bg-white border-indigo-500 shadow-lg shadow-indigo-100' : 'bg-slate-50 border-transparent hover:bg-slate-100'}
+                               `}
+                             >
+                                <label className="flex items-center gap-4 cursor-pointer flex-1 z-10">
+                                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                      {isSelected && <CheckCircle2 size={14} className="text-white" />}
+                                   </div>
+                                   <div className="flex flex-col">
+                                      <span className={`text-sm font-bold ${isSelected ? 'text-slate-900' : 'text-slate-500'}`}>{cap.label}</span>
+                                      <span className="text-[10px] text-slate-400">Yetenek aktif</span>
+                                   </div>
+                                   <input 
+                                     type="checkbox"
+                                     className="hidden"
+                                     checked={isSelected}
+                                     onChange={(e) => {
+                                        const val = e.target.checked;
+                                        setFormData(prev => ({
+                                           ...prev,
+                                           selectedCapabilities: { ...prev.selectedCapabilities, [cap.key]: val }
+                                        }));
+                                     }}
+                                   />
+                                </label>
+
+                                {isSelected && (
+                                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4">
+                                      <span className="text-xs font-bold text-slate-400 hidden sm:inline">Birim Fiyat:</span>
+                                      <div className="relative w-28">
+                                         <input 
+                                            type="number"
+                                            placeholder="0"
+                                            min="0"
+                                            value={formData.capabilities[cap.key] || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, capabilities: { ...prev.capabilities, [cap.key]: e.target.value } }))}
+                                            className="w-full pl-3 pr-8 py-2 bg-indigo-50 border-none rounded-xl text-right font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm"
+                                         />
+                                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-indigo-400">TL</span>
+                                      </div>
+                                   </div>
+                                )}
+                             </div>
+                          )
+                      })}
+                   </div>
+                </div>
+
+             </div>
+
+             {/* Footer Actions */}
+             <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-3">
+                 <button 
+                   onClick={() => setShowAddModal(false)}
+                   className="px-6 py-3 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+                 >
+                   Vazgeç
+                 </button>
+                 <button 
+                   onClick={handleSave}
+                   disabled={saving}
+                   className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:scale-105 active:scale-95 transition-all shadow-xl shadow-slate-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:transform-none"
+                 >
+                   {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                   {editingUserId ? 'Değişiklikleri Kaydet' : 'Personeli Oluştur'}
+                 </button>
+             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* === DELETE CONFIRMATION MODAL === */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-            <div className="p-6 text-center">
-              <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle size={28} className="text-rose-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+           <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl animate-in zoom-in-95">
+              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                 <AlertTriangle size={32} className="text-rose-500" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Kullanıcıyı Sil</h3>
-              <p className="text-sm text-slate-500">
-                Bu kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              <h3 className="text-xl font-black text-slate-900 mb-2">Emin misiniz?</h3>
+              <p className="text-slate-500 text-sm font-medium mb-6">
+                 Seçilen personel ve o personele ait tüm görevler kalıcı olarak silinecektir. Bu işlem geri alınamaz.
               </p>
-            </div>
-            
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteModal(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
-              >
-                İptal
-              </button>
-              <button
-                onClick={() => handleDeleteStaff(showDeleteModal)}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors disabled:opacity-50"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                Sil
-              </button>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                 <button 
+                   onClick={() => setShowDeleteModal(null)}
+                   className="py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors"
+                 >
+                   Vazgeç
+                 </button>
+                 <button 
+                   onClick={() => handleDeleteStaff(showDeleteModal)}
+                   className="py-3 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 transition-colors shadow-lg shadow-rose-500/30"
+                 >
+                   Evet, Sil
+                 </button>
+              </div>
+           </div>
         </div>
       )}
     </div>

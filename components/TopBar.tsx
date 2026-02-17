@@ -100,7 +100,7 @@ const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilt
                   className="appearance-none pl-4 pr-8 py-1.5 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
               >
                   <option value="All">Tüm Platformlar</option>
-                  {Object.values(Platform).map(p => <option key={p} value={p}>{p}</option>)}
+                  {(Object.values(Platform) as string[]).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
@@ -113,7 +113,7 @@ const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilt
                   className="appearance-none pl-4 pr-8 py-1.5 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
               >
                   <option value="All">Tüm Durumlar</option>
-                  {Object.values(Status).map(s => <option key={s} value={s}>{s}</option>)}
+                  {(Object.values(Status) as string[]).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
@@ -212,7 +212,7 @@ const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilt
                 className="w-full appearance-none px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               >
                 <option value="All">Tüm Platformlar</option>
-                {Object.values(Platform).map(p => <option key={p} value={p}>{p}</option>)}
+                {(Object.values(Platform) as string[]).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             </div>
@@ -226,7 +226,7 @@ const TopBar: React.FC<TopBarProps> = ({ viewMode, setViewMode, filters, setFilt
               className="w-full appearance-none px-3 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             >
               <option value="All">Tüm Durumlar</option>
-              {Object.values(Status).map(s => <option key={s} value={s}>{s}</option>)}
+              {(Object.values(Status) as string[]).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>

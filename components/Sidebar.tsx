@@ -14,7 +14,8 @@ import {
   X,
   CalendarDays,
   Building2,
-  Wallet
+  Wallet,
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -38,6 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // Ekip üyeleri nav items
   const staffNavItems = [
     { label: 'Takvim', icon: LayoutDashboard, href: '/', adminOnly: false },
+    { label: 'Projelerim', icon: Briefcase, href: '/projects', adminOnly: false },
     { label: 'Müşteriler', icon: Users, href: '/clients', adminOnly: true },
     { label: 'Görevlerim', icon: CheckSquare, href: '/tasks', adminOnly: false },
     { label: 'Cüzdan', icon: Wallet, href: '/wallet', adminOnly: false },
@@ -142,7 +144,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex w-[240px] h-full flex-shrink-0">
+      <div className="hidden md:flex w-[240px] min-w-[240px] max-w-[240px] h-full flex-shrink-0 overflow-hidden">
         <SidebarContent />
       </div>
 

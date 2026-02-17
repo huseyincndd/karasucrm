@@ -1,15 +1,25 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Client, PackageType } from '@/types';
 import ClientCard from '@/components/clients/ClientCard';
 import ClientPlanner from '@/components/clients/ClientPlanner';
 import AddClientModal from '@/components/clients/AddClientModal';
 import Sidebar from '@/components/Sidebar';
-import { Plus, Users, AlertTriangle, Loader2, RefreshCw, Menu } from 'lucide-react';
+import { 
+  Plus, 
+  Users, 
+  AlertTriangle, 
+  Loader2, 
+  RefreshCw, 
+  Menu, 
+  Search, 
+  Filter, 
+  Sparkles,
+  Zap
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-// API'den gelen client verisini frontend tipine dönüştür
 // API'den gelen client verisini frontend tipine dönüştür
 interface ApiClient {
   id: string;
@@ -80,6 +90,7 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Müşterileri API'den yükle
   const fetchClients = useCallback(async () => {
@@ -111,42 +122,54 @@ export default function ClientsPage() {
     }
   }, [authLoading, isAdmin, fetchClients]);
 
+  // Filter Logic
+  const filteredClients = useMemo(() => {
+    if (!searchQuery) return clients;
+    const lowerQuery = searchQuery.toLowerCase();
+    return clients.filter(c => 
+      c.name.toLowerCase().includes(lowerQuery) || 
+      c.package.toLowerCase().includes(lowerQuery)
+    );
+  }, [clients, searchQuery]);
+
+  // Calculate stats
+  const urgentCount = useMemo(() => {
+    return clients.filter(c => {
+      const renewalDate = new Date(c.renewalDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysLeft = Math.ceil((renewalDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysLeft <= 3;
+    }).length;
+  }, [clients]);
+
   // Yetki Kontrolü - Hook'lardan SONRA yapılmalı
   if (authLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
-        <Loader2 size={32} className="text-indigo-600 animate-spin" />
+      <div className="flex h-screen w-full items-center justify-center bg-[#FAFAFA]">
+        <Loader2 size={32} className="text-slate-300 animate-spin" />
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50 p-4">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-lg w-full max-w-sm border border-slate-100">
-            <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle size={32} className="text-rose-500" />
+      <div className="flex h-screen w-full items-center justify-center bg-[#FAFAFA] p-4">
+        <div className="text-center p-8 bg-white rounded-3xl shadow-xl shadow-slate-200/50 w-full max-w-sm border border-slate-100">
+            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-rose-50/50">
+              <AlertTriangle size={36} className="text-rose-500" />
             </div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">Yetkisiz Erişim</h2>
-            <p className="text-slate-500 text-sm mb-6">
-                Müşteriler sayfasına yalnızca yöneticiler erişebilir.
+            <h2 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">Erişim Reddedildi</h2>
+            <p className="text-slate-500 text-sm mb-8 font-medium leading-relaxed">
+                Bu alana yalnızca yetkili yöneticiler erişebilir. Lütfen giriş yapın veya ana sayfaya dönün.
             </p>
-            <a href="/" className="inline-flex items-center justify-center w-full px-4 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors text-sm font-medium">
+            <a href="/" className="inline-flex items-center justify-center w-full px-6 py-4 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-bold tracking-wide shadow-lg shadow-slate-900/20">
                 Ana Sayfaya Dön
             </a>
         </div>
       </div>
     );
   }
-
-  // Calculate urgent clients count
-  const urgentCount = clients.filter(c => {
-    const renewalDate = new Date(c.renewalDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const daysLeft = Math.ceil((renewalDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return daysLeft <= 3;
-  }).length;
 
   // Müşteri güncelleme (ClientPlanner'dan)
   const handleClientUpdate = (updatedClient: Client) => {
@@ -232,111 +255,153 @@ export default function ClientsPage() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
+    <div className="flex h-screen w-full bg-[#FAFAFA] text-slate-900 font-sans overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="h-auto md:h-16 bg-white border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 py-4 md:py-0 gap-4 md:gap-0 flex-shrink-0">
-          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden p-1 -ml-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                <Menu size={24} />
-              </button>
-              <div className="flex items-center gap-2">
-                <Users size={20} className="text-slate-400" />
-                <h1 className="text-xl font-semibold text-slate-900">Müşteriler</h1>
-              </div>
-            </div>
-            <span className="text-sm text-slate-400">
-              {clients.length} müşteri
-            </span>
-            {urgentCount > 0 && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 text-xs font-medium rounded-full animate-pulse">
-                <AlertTriangle size={12} />
-                {urgentCount} acil yenileme
-              </span>
-            )}
-            
-            {/* Refresh button */}
-            <button
-              onClick={fetchClients}
-              disabled={loading}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              title="Yenile"
-            >
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-          
-          {/* Add button - sadece admin */}
-          {isAdmin && (
-            <button 
-              onClick={() => setShowAddModal(true)}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
-            >
-              <Plus size={16} />
-              Yeni Müşteri
-            </button>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* Error */}
-          {error && (
-            <div className="flex items-center gap-3 p-4 mb-6 bg-rose-50 text-rose-700 rounded-lg">
-              <AlertTriangle size={20} />
-              <span>{error}</span>
-              <button onClick={fetchClients} className="ml-auto text-sm underline">Tekrar Dene</button>
-            </div>
-          )}
-
-          {/* Loading */}
-          {loading ? (
-            <div className="flex items-center justify-center py-24">
-              <div className="text-center">
-                <Loader2 size={32} className="animate-spin text-slate-400 mx-auto mb-3" />
-                <p className="text-slate-500">Müşteriler yükleniyor...</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Client Grid */}
-              {clients.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                  {clients.map(client => (
-                    <ClientCard 
-                      key={client.id}
-                      client={client}
-                      onClick={() => setSelectedClient(client)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <Users size={48} className="text-slate-300 mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">Henüz müşteri yok</h3>
-                  <p className="text-sm text-slate-500 mb-4">İlk müşterinizi ekleyerek başlayın</p>
+      <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
+        
+        {/* === HEADER === */}
+        <header className="flex-shrink-0 bg-white/80 backdrop-blur-xl border-b border-slate-100 z-20 sticky top-0">
+          <div className="max-w-[1600px] mx-auto w-full px-5 py-4">
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+               
+               {/* Title & Mobile Menu */}
+               <div className="flex items-center justify-between md:justify-start gap-4">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setIsSidebarOpen(true)} className="md:hidden w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors">
+                       <Menu size={20} />
+                    </button>
+                    <div>
+                       <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none mb-1">Müşteriler</h1>
+                       <div className="flex items-center gap-2">
+                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                            Yönetim Paneli
+                         </span>
+                         {urgentCount > 0 && (
+                            <span className="flex items-center gap-1 bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse">
+                               <AlertTriangle size={10} />
+                               {urgentCount} Acil
+                            </span>
+                         )}
+                       </div>
+                    </div>
+                  </div>
+                  
+                  {/* Mobile Add Button (Visible only on mobile) */}
                   {isAdmin && (
                     <button 
                       onClick={() => setShowAddModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
+                      className="md:hidden w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-2xl shadow-lg shadow-slate-900/20 active:scale-95 transition-transform"
                     >
-                      <Plus size={16} />
-                      Yeni Müşteri Ekle
+                      <Plus size={20} />
                     </button>
                   )}
-                </div>
-              )}
-            </>
-          )}
+               </div>
+
+               {/* Actions & Search */}
+               <div className="flex items-center gap-3 w-full md:w-auto">
+                  {/* Search Bar */}
+                  <div className="relative flex-1 md:w-64 group">
+                     <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                        <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                     </div>
+                     <input 
+                       type="text" 
+                       placeholder="Müşteri ara..." 
+                       value={searchQuery}
+                       onChange={(e) => setSearchQuery(e.target.value)}
+                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all outline-none"
+                     />
+                  </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={fetchClients}
+                    disabled={loading}
+                    className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-500 transition-colors disabled:opacity-50"
+                    title="Yenile"
+                  >
+                    <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                  </button>
+                  
+                  {/* Desktop Add Button */}
+                  {isAdmin && (
+                    <button 
+                      onClick={() => setShowAddModal(true)}
+                      disabled={saving}
+                      className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-2xl hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-slate-900/20 disabled:opacity-50"
+                    >
+                      <Plus size={18} />
+                      <span>Yeni Ekle</span>
+                    </button>
+                  )}
+               </div>
+             </div>
+          </div>
+        </header>
+
+        {/* === CONTENT === */}
+        <div className="flex-1 overflow-y-auto scroll-smooth bg-[#FAFAFA]">
+          <div className="max-w-[1600px] mx-auto w-full px-5 py-8 pb-32">
+             
+             {/* Error Message */}
+             {error && (
+               <div className="flex items-center gap-3 p-4 mb-8 bg-rose-50 border border-rose-100 text-rose-700 rounded-2xl shadow-sm animate-in slide-in-from-top-2">
+                 <div className="p-2 bg-rose-100 rounded-full">
+                    <AlertTriangle size={18} />
+                 </div>
+                 <span className="font-medium text-sm">{error}</span>
+                 <button onClick={fetchClients} className="ml-auto text-xs font-bold underline hover:no-underline">Tekrar Dene</button>
+               </div>
+             )}
+
+             {/* Loading State */}
+             {loading && !clients.length ? (
+               <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
+                 <Loader2 size={40} className="animate-spin text-slate-900 mb-4" />
+                 <p className="text-xs font-black tracking-widest uppercase">Müşteriler Yükleniyor...</p>
+               </div>
+             ) : (
+               <>
+                 {/* Empty Search or No Clients State */}
+                 {!loading && filteredClients.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center py-20 text-center">
+                     <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-slate-50/50">
+                        {searchQuery ? <Search size={40} className="text-slate-300" /> : <Users size={40} className="text-slate-300" />}
+                     </div>
+                     <h3 className="text-xl font-black text-slate-900 mb-2">
+                        {searchQuery ? 'Sonuç Bulunamadı' : 'Henüz Müşteri Yok'}
+                     </h3>
+                     <p className="text-slate-500 text-sm mb-8 font-medium max-w-xs mx-auto">
+                        {searchQuery ? 'Arama kriterlerinize uygun müşteri bulunamadı.' : 'Sisteme yeni müşteri ekleyerek başlayın.'}
+                     </p>
+                     {!searchQuery && isAdmin && (
+                       <button 
+                         onClick={() => setShowAddModal(true)}
+                         className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition-all font-bold text-sm shadow-xl shadow-slate-900/20"
+                       >
+                         <Plus size={18} />
+                         İlk Müşterini Ekle
+                       </button>
+                     )}
+                   </div>
+                 ) : (
+                   /* grid-cols-responsive */
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                     {filteredClients.map((client) => (
+                       <ClientCard 
+                         key={client.id}
+                         client={client}
+                         onClick={() => setSelectedClient(client)}
+                       />
+                     ))}
+                   </div>
+                 )}
+               </>
+             )}
+          </div>
         </div>
-      </div>
+      </main>
 
       {/* Client Planner Modal */}
       {selectedClient && (
