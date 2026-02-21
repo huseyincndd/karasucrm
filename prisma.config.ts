@@ -9,6 +9,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migration ve db push işlemleri bu direct URL (Port 5432) kullanarak yapılacaktır.
+    url: process.env["DIRECT_URL"],
   },
 });

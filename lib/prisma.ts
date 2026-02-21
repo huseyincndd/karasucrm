@@ -7,7 +7,13 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    max: 1, // Vercel Cloud (Serverless) her çalışan lambda için en fazla 1 bağlantı açsın
+    allowExitOnIdle: true, // İşlem bittiğinde bağlantıyı bekletmeden havuza geri salsın
+    idleTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000 
+  });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
