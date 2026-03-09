@@ -60,8 +60,8 @@ const mapApiClientToClient = (apiClient: ApiClient): Client => ({
   package: apiClient.packageType as PackageType,
   startDate: apiClient.startDate,
   renewalDate: apiClient.renewalDate,
-  usedQuota: apiClient.usedQuota,
-  plannedDates: apiClient.plannedDates,
+  usedQuota: apiClient.usedQuota || { reels: 0, posts: 0, stories: 0, reelsCompleted: 0, postsCompleted: 0, storiesCompleted: 0 },
+  plannedDates: apiClient.plannedDates || { reels: [], posts: [], stories: [] },
   hasPortalAccess: apiClient.hasPortalAccess,
   portalUsername: apiClient.portalUsername,
   

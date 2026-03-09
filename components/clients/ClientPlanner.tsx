@@ -239,8 +239,9 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
 
   // Quota for Period
   const getRemaining = (type: ContentType) => {
-    const total = quota[type];
+    const total = quota[type] || 0;
     const used = effectiveTasks.filter(t => {
+      if (!t.date) return false;
       const taskDate = new Date(t.date);
       taskDate.setHours(0,0,0,0);
       const pStart = new Date(currentPeriodStart); pStart.setHours(0,0,0,0);

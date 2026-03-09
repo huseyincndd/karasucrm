@@ -172,9 +172,9 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onAdd,
       adsPeriod: adsUserIds.length > 0 ? adsPeriod : null,
       
       // Custom Quota (Ensure number)
-      reelsQuota: selectedPackage === 'custom' ? Number(customQuotas.reels === '' ? 0 : customQuotas.reels) : undefined,
-      postsQuota: selectedPackage === 'custom' ? Number(customQuotas.posts === '' ? 0 : customQuotas.posts) : undefined,
-      storiesQuota: selectedPackage === 'custom' ? Number(customQuotas.stories === '' ? 0 : customQuotas.stories) : undefined
+      reelsQuota: selectedPackage === 'custom' ? Number(customQuotas.reels) || 0 : undefined,
+      postsQuota: selectedPackage === 'custom' ? Number(customQuotas.posts) || 0 : undefined,
+      storiesQuota: selectedPackage === 'custom' ? Number(customQuotas.stories) || 0 : undefined
     };
     
     if (clientToEdit && onUpdate) {
@@ -292,7 +292,7 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onAdd,
                           type="number"
                           min="0"
                           value={customQuotas.reels}
-                          onChange={e => setCustomQuotas({...customQuotas, reels: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                          onChange={e => setCustomQuotas({...customQuotas, reels: e.target.value})}
                           className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -302,7 +302,7 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onAdd,
                           type="number"
                           min="0"
                           value={customQuotas.posts}
-                          onChange={e => setCustomQuotas({...customQuotas, posts: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                          onChange={e => setCustomQuotas({...customQuotas, posts: e.target.value})}
                           className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -312,7 +312,7 @@ const AddClientModal: React.FC<AddClientModalProps> = ({ isOpen, onClose, onAdd,
                           type="number"
                           min="0"
                           value={customQuotas.stories}
-                          onChange={e => setCustomQuotas({...customQuotas, stories: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                          onChange={e => setCustomQuotas({...customQuotas, stories: e.target.value})}
                           className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
