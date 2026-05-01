@@ -89,6 +89,8 @@ export async function GET(request: NextRequest) {
           isClient: true,
           clientId: client.id,
           packageType: client.packageType,
+          startDate: client.startDate.toISOString().split('T')[0],
+          renewalDate: client.renewalDate.toISOString().split('T')[0],
           reelsQuota: client.reelsQuota,
           postsQuota: client.postsQuota,
           storiesQuota: client.storiesQuota,

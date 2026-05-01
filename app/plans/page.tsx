@@ -114,6 +114,13 @@ const getDaysUntil = (dateStr: string) => {
   return Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+const formatShortTr = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
 export default function PlansPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -234,6 +241,28 @@ export default function PlansPage() {
     stories: user?.storiesQuota ?? defaultQuota.stories
   };
 
+  const packageStart = user?.startDate;
+  const packageEnd = user?.renewalDate;
+  const packageCard = useMemo(() => {
+    if (!isClient || !packageStart || !packageEnd) return null;
+
+    const start = new Date(packageStart);
+    const end = new Date(packageEnd);
+    const now = new Date();
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+
+    const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    const elapsedDays = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const progress = clamp((elapsedDays / totalDays) * 100, 0, 100);
+
+    const remainingDays = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const isExpired = remainingDays === 0;
+
+    return { progress, remainingDays, isExpired };
+  }, [isClient, packageStart, packageEnd]);
+
   const toggleMonth = (monthKey: string) => {
     setExpandedMonths(prev => ({ ...prev, [monthKey]: !prev[monthKey] }));
   };
@@ -331,6 +360,41 @@ export default function PlansPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+
+            {/* Paket Dönemi (Merkezi) */}
+            {isClient && packageStart && packageEnd && (
+              <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 rounded-2xl p-[1px] shadow-lg shadow-indigo-500/10">
+                <div className="bg-white/10 backdrop-blur rounded-2xl px-5 py-5 md:px-7 md:py-6 text-white">
+                  <div className="flex flex-col items-center text-center gap-2">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20">
+                      <Calendar size={14} className="text-white/90" />
+                      <span className="text-xs font-semibold tracking-wide">PAKET DÖNEMİ</span>
+                    </div>
+
+                    <div className="text-xl md:text-3xl font-extrabold leading-tight">
+                      {formatShortTr(packageStart)} <span className="text-white/70 font-semibold">—</span> {formatShortTr(packageEnd)}
+                    </div>
+
+                    {packageCard && (
+                      <div className="w-full max-w-xl mt-2">
+                        <div className="flex items-center justify-between text-xs text-white/85">
+                          <span className="font-medium">
+                            {packageCard.isExpired ? 'Süre doldu' : `${packageCard.remainingDays} gün kaldı`}
+                          </span>
+                          <span className="font-semibold">{Math.round(packageCard.progress)}%</span>
+                        </div>
+                        <div className="mt-2 h-2.5 bg-white/20 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-white/90 rounded-full transition-all duration-500"
+                            style={{ width: `${packageCard.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

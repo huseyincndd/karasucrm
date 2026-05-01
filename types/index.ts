@@ -33,6 +33,9 @@ export interface User {
   postsQuota?: number;
   storiesQuota?: number;
   services?: ClientService[];
+  // Client package period (for client portal)
+  startDate?: string; // ISO date (YYYY-MM-DD)
+  renewalDate?: string; // ISO date (YYYY-MM-DD)
   // Extra fields for auth context user
   clientId?: string;
   packageType?: PackageType;
