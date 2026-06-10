@@ -50,6 +50,7 @@ interface ApiTask {
   status: string;
   assignedTo: string; // ID
   clientId: string;
+  isExtra?: boolean;
 }
 
 interface ClientServiceItem {
@@ -69,6 +70,7 @@ interface PendingTask {
   contentType: ContentType;
   staffId: string;
   tempId: string; // To differentiate pending items
+  isExtra?: boolean;
 }
 
 const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
@@ -81,6 +83,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const [currentPeriodStart, setCurrentPeriodStart] = useState<Date>(new Date());
   const [activeType, setActiveType] = useState<ContentType | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<ApiUser | null>(null); // Bu ekranda seçili olan personel
+  const [isExtraMode, setIsExtraMode] = useState(false);
   
   // State for Tasks
   const [existingTasks, setExistingTasks] = useState<ApiTask[]>([]);
@@ -101,7 +104,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [clientServices, setClientServices] = useState<ClientServiceItem[]>([]);
 
-  const defaultQuota = PACKAGE_QUOTAS[client.package] || PACKAGE_QUOTAS.vitrin;
+  const defaultQuota = PACKAGE_QUOTAS[client.package] || PACKAGE_QUOTAS.star;
   const quota = {
     reels: client.reelsQuota ?? defaultQuota.reels,
     posts: client.postsQuota ?? defaultQuota.posts,
@@ -163,7 +166,8 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
           date: t.date,
           status: t.status,
           assignedTo: t.assignedTo,
-          clientId: t.clientId
+          clientId: t.clientId,
+          isExtra: t.isExtra
         }));
         setExistingTasks(mapped);
       }
@@ -230,7 +234,8 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
       date: p.date,
       status: 'beklemede',
       assignedTo: p.staffId,
-      clientId: client.id
+      clientId: client.id,
+      isExtra: p.isExtra
     }));
     return [...current, ...pending];
   }, [existingTasks, deletedTaskIds, pendingTasks, client.id]);
@@ -241,7 +246,7 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
   const getRemaining = (type: ContentType) => {
     const total = quota[type] || 0;
     const used = effectiveTasks.filter(t => {
-      if (!t.date) return false;
+      if (!t.date || t.isExtra) return false;
       const taskDate = new Date(t.date);
       taskDate.setHours(0,0,0,0);
       const pStart = new Date(currentPeriodStart); pStart.setHours(0,0,0,0);
@@ -290,13 +295,20 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
       return;
     }
 
-    if (getRemaining(activeType) <= 0) return;
+    let markAsExtra = isExtraMode;
+    
+    if (!markAsExtra && getRemaining(activeType) <= 0) {
+      const confirmExtra = window.confirm('Müşteri kotası dolmuştur. Müşteri memnuniyeti kapsamında ekstra (bonus) olarak eklemek ister misiniz?');
+      if (!confirmExtra) return;
+      markAsExtra = true;
+    }
 
     setPendingTasks(prev => [...prev, {
       date: dateStr,
       contentType: activeType,
       staffId: selectedStaff.id,
-      tempId: `temp-${Date.now()}-${Math.random()}`
+      tempId: `temp-${Date.now()}-${Math.random()}`,
+      isExtra: markAsExtra
     }]);
   };
 
@@ -316,7 +328,8 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
             date: task.date,
             clientId: client.id,
             assignedTo: task.staffId,
-            status: 'beklemede'
+            status: 'beklemede',
+            isExtra: task.isExtra
           })
         })
       );
@@ -529,8 +542,18 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
           )}
 
           {/* ... Resource Bar ... */}
-           <div className="flex items-center justify-center gap-2 md:gap-3 p-3 md:p-4 border-b border-slate-100 overflow-x-auto">
-            {(['reels', 'posts', 'stories'] as ContentType[]).map(type => {
+           <div className="flex flex-col gap-3 p-3 md:p-4 border-b border-slate-100">
+             <div className="flex items-center justify-between">
+               <span className="text-xs font-semibold text-slate-500">İçerik Tipleri</span>
+               <button
+                 onClick={() => setIsExtraMode(!isExtraMode)}
+                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isExtraMode ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+               >
+                 🎁 Ekstra Modu
+               </button>
+             </div>
+             <div className="flex items-center gap-2 md:gap-3 overflow-x-auto">
+               {(['reels', 'posts', 'stories'] as ContentType[]).map(type => {
               const config = getTypeConfig(type);
               const Icon = config.icon;
               const remaining = getRemaining(type);
@@ -562,7 +585,8 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
                 </button>
               );
             })}
-          </div>
+             </div>
+           </div>
 
           {/* ... Staff Selector ... */}
           {activeType && (
@@ -734,19 +758,24 @@ const ClientPlanner: React.FC<ClientPlannerProps> = ({ client, onClose, onUpdate
                     )}
                     
                     {activeType && assignedTask && assignedStaff && (
-                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white overflow-hidden shadow-sm">
-                         {assignedStaff.avatar ? (
-                           // eslint-disable-next-line @next/next/no-img-element
-                           <img 
-                             src={assignedStaff.avatar} 
-                             alt={assignedStaff.name}
-                             className="w-full h-full object-cover"
-                           />
-                         ) : (
-                           <div className="w-full h-full bg-indigo-500 flex items-center justify-center text-white text-[8px] font-bold">
-                             {assignedStaff.name.charAt(0)}
-                           </div>
-                         )}
+                      <div className="absolute -bottom-1 -right-1 flex items-center gap-0.5">
+                        {assignedTask.isExtra && (
+                          <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center shadow-sm text-[10px]" title="Ekstra/Bonus Görev">🎁</div>
+                        )}
+                        <div className="w-5 h-5 rounded-full border-2 border-white overflow-hidden shadow-sm">
+                           {assignedStaff.avatar ? (
+                             // eslint-disable-next-line @next/next/no-img-element
+                             <img 
+                               src={assignedStaff.avatar} 
+                               alt={assignedStaff.name}
+                               className="w-full h-full object-cover"
+                             />
+                           ) : (
+                             <div className="w-full h-full bg-indigo-500 flex items-center justify-center text-white text-[8px] font-bold">
+                               {assignedStaff.name.charAt(0)}
+                             </div>
+                           )}
+                        </div>
                       </div>
                     )}
                     

@@ -78,7 +78,7 @@ export interface Task {
 }
 
 // ===== Package types =====
-export type PackageType = 'vitrin' | 'plus' | 'premium' | 'custom';
+export type PackageType = 'star' | 'gold' | 'premium' | 'custom';
 
 export interface PackageQuota {
   reels: number;
@@ -87,16 +87,16 @@ export interface PackageQuota {
 }
 
 export const PACKAGE_QUOTAS: Record<PackageType, PackageQuota> = {
-  vitrin: { reels: 4, posts: 8, stories: 8 },
-  plus: { reels: 6, posts: 12, stories: 12 },
-  premium: { reels: 10, posts: 20, stories: 20 },
+  star: { reels: 1, posts: 3, stories: 2 },
+  gold: { reels: 4, posts: 5, stories: 5 },
+  premium: { reels: 6, posts: 7, stories: 8 },
   custom: { reels: 0, posts: 0, stories: 0 } // Default for custom
 };
 
 export const PACKAGE_LABELS: Record<PackageType, string> = {
-  vitrin: 'Vitrin Paket',
-  plus: 'Plus Paket',
-  premium: 'Premium Paket',
+  star: 'Star Paketi',
+  gold: 'Gold Paketi',
+  premium: 'Premium Paketi',
   custom: 'Özel Paket'
 };
 

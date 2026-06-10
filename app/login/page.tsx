@@ -36,8 +36,12 @@ export default function LoginPage() {
         return;
       }
 
-      // Başarılı giriş - ana sayfaya yönlendir
-      window.location.href = '/';
+      // Başarılı giriş - müşteri ise planlarıma, değilse ana sayfaya yönlendir
+      if (data.user?.isClient) {
+        window.location.href = '/plans';
+      } else {
+        window.location.href = '/';
+      }
     } catch {
       setError('Bağlantı hatası');
     } finally {

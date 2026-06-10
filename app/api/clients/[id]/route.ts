@@ -159,7 +159,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (name) updateData.name = name;
     if (logo !== undefined) updateData.logo = logo || null;
     if (packageType) {
-      const validPackages = ['vitrin', 'plus', 'premium', 'custom'];
+      const validPackages = ['star', 'gold', 'premium', 'custom'];
       if (!validPackages.includes(packageType)) {
         return NextResponse.json(
           { error: 'Geçersiz paket tipi' },
@@ -189,9 +189,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (adsPeriod !== undefined) updateData.adsPeriod = adsPeriod || null;
     
     // Update Quotas
-    if (reelsQuota !== undefined) updateData.reelsQuota = Number(reelsQuota);
-    if (postsQuota !== undefined) updateData.postsQuota = Number(postsQuota);
-    if (storiesQuota !== undefined) updateData.storiesQuota = Number(storiesQuota);
+    if (reelsQuota !== undefined) updateData.reelsQuota = reelsQuota === null ? null : Number(reelsQuota);
+    if (postsQuota !== undefined) updateData.postsQuota = postsQuota === null ? null : Number(postsQuota);
+    if (storiesQuota !== undefined) updateData.storiesQuota = storiesQuota === null ? null : Number(storiesQuota);
 
     // Müşteri portalı giriş bilgileri
     if (username !== undefined) {

@@ -223,7 +223,7 @@ export default function ClientsPage() {
       const payload = {
         name: data.name,
         logo: data.logo || null,
-        packageType: data.package,
+        packageType: data.packageType,
         startDate: data.startDate,
         renewalDate: renewalDate.toISOString().split('T')[0],
         

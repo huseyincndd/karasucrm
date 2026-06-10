@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Select from 'react-select';
 import Sidebar from '@/components/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -26,7 +27,9 @@ import {
   Share2,
   Globe,
   Calendar,
-  Users
+  Users,
+  Crown,
+  Sparkles
 } from 'lucide-react';
 
 // İçerik tipi konfigürasyonu
@@ -65,15 +68,17 @@ const STATUS_CONFIG: Record<string, { label: string; icon: typeof Clock; color: 
 };
 
 const PACKAGE_LABELS: Record<string, string> = {
-  vitrin: 'Vitrin Paket',
-  plus: 'Plus Paket',
-  premium: 'Premium Paket',
+  star: 'Star Paketi',
+  gold: 'Gold Paketi',
+  premium: 'Premium Paketi',
+  custom: 'Özel Paket'
 };
 
 const PACKAGE_QUOTAS: Record<string, { reels: number; posts: number; stories: number }> = {
-  vitrin: { reels: 4, posts: 8, stories: 8 },
-  plus: { reels: 6, posts: 12, stories: 12 },
-  premium: { reels: 10, posts: 20, stories: 20 }
+  star: { reels: 1, posts: 3, stories: 2 },
+  gold: { reels: 4, posts: 5, stories: 5 },
+  premium: { reels: 6, posts: 7, stories: 8 },
+  custom: { reels: 0, posts: 0, stories: 0 }
 };
 
 interface ApiTask {
@@ -92,6 +97,7 @@ interface ApiTask {
   staffRole?: string;
   staffDepartment?: string;
   createdAt: string;
+  isExtra?: boolean;
 }
 
 const formatDate = (dateStr: string) => {
@@ -225,16 +231,19 @@ export default function PlansPage() {
     const postsCompleted = tasks.filter(t => t.contentType === 'posts' && t.status === 'tamamlandi').length;
     const storiesCompleted = tasks.filter(t => t.contentType === 'stories' && t.status === 'tamamlandi').length;
     
+    const extraCount = tasks.filter(t => t.isExtra).length;
+
     return { 
       total, beklemede, hazir, tamamlandi, upcoming, 
       reels, posts, stories,
-      reelsCompleted, postsCompleted, storiesCompleted 
+      reelsCompleted, postsCompleted, storiesCompleted,
+      extraCount
     };
   }, [tasks]);
 
   // Paket kotası
-  const packageType = user?.packageType || 'vitrin';
-  const defaultQuota = PACKAGE_QUOTAS[packageType] || PACKAGE_QUOTAS.vitrin;
+  const packageType = user?.packageType || 'star';
+  const defaultQuota = PACKAGE_QUOTAS[packageType] || PACKAGE_QUOTAS.star;
   const quota = {
     reels: user?.reelsQuota ?? defaultQuota.reels,
     posts: user?.postsQuota ?? defaultQuota.posts,
@@ -243,6 +252,7 @@ export default function PlansPage() {
 
   const packageStart = user?.startDate;
   const packageEnd = user?.renewalDate;
+  
   const packageCard = useMemo(() => {
     if (!isClient || !packageStart || !packageEnd) return null;
 
@@ -275,6 +285,84 @@ export default function PlansPage() {
     setExpandedMonths(prev => ({ ...prev, [currentKey]: true }));
   }, []);
 
+  // Premium Paket Tasarım Konfigürasyonu
+  const getPackageConfig = (pkg: string) => {
+    switch(pkg) {
+      case 'star':
+        return {
+          gradient: 'from-blue-600 via-blue-700 to-indigo-900',
+          borderLight: 'border-blue-400/30',
+          textColor: 'text-blue-50',
+          bulletColor: 'bg-blue-400',
+          title: 'STAR',
+          subtitle: 'REKLAM YÖNETİMİ\nİNSTAGRAM+FACEBOOK',
+          features: [
+            'Reklam Yönetimi',
+            '1 Adet Yapay Zeka Video',
+            '5 Adet Grafik Tasarım',
+            'İçerik Danışmanlığı',
+            'Sosyal Medya Ekibi',
+            'Takipçi + Beğeni + İzlenme'
+          ]
+        };
+      case 'gold':
+        return {
+          gradient: 'from-amber-400 via-orange-500 to-rose-600',
+          borderLight: 'border-amber-300/30',
+          textColor: 'text-amber-50',
+          bulletColor: 'bg-amber-200',
+          title: 'GOLD',
+          subtitle: 'SOSYAL MEDYA YÖNETİMİ\nİNSTAGRAM+FACEBOOK',
+          features: [
+            'Sosyal Medya Yönetimi',
+            'Reklam Yönetimi',
+            '4 Adet Yapay Zeka Video',
+            '10 Adet Grafik Tasarım',
+            'İçerik Danışmanlığı',
+            'Sosyal Medya Ekibi',
+            'Takipçi + Beğeni + İzlenme'
+          ]
+        };
+      case 'premium':
+        return {
+          gradient: 'from-fuchsia-500 via-purple-600 to-violet-900',
+          borderLight: 'border-fuchsia-300/30',
+          textColor: 'text-fuchsia-50',
+          bulletColor: 'bg-fuchsia-300',
+          title: 'PREMİUM',
+          subtitle: 'KAMERA ÇEKİMİ+GOOGLE\nİNSTAGRAM+FACEBOOK',
+          features: [
+            'Kamera Çekimi',
+            'Sosyal Medya Yönetimi',
+            'Google Yönetimi',
+            'Reklam Yönetimi',
+            '3 Adet Kadın Sunuculu Reklam Video',
+            '3 Adet Tanıtım Video',
+            '15 Adet Grafik Tasarım',
+            'İçerik Danışmanlığı',
+            'Sosyal Medya Ekibi'
+          ]
+        };
+      default:
+        return {
+          gradient: 'from-slate-700 via-slate-800 to-slate-900',
+          borderLight: 'border-slate-500/30',
+          textColor: 'text-slate-100',
+          bulletColor: 'bg-slate-400',
+          title: 'ÖZEL',
+          subtitle: 'MÜŞTERİYE ÖZEL TASARIM\nSOSYAL MEDYA',
+          features: [
+            `${quota.reels} Adet Video İçerik`,
+            `${quota.posts + quota.stories} Adet Grafik Tasarım`,
+            'Özel İçerik Planlaması',
+            'Sosyal Medya Ekibi'
+          ]
+        };
+    }
+  };
+
+  const pkgConfig = getPackageConfig(packageType);
+
   if (authLoading) {
     return (
       <div className="flex h-screen w-full bg-slate-50 items-center justify-center">
@@ -287,9 +375,11 @@ export default function PlansPage() {
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative bg-slate-50/50">
+        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none" />
+
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 flex-shrink-0">
+        <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 md:px-6 py-4 flex-shrink-0 relative z-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <button 
@@ -327,39 +417,166 @@ export default function PlansPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2 mt-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-              <Filter size={14} className="text-slate-400" />
-              <select 
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="bg-transparent text-sm text-slate-700 focus:outline-none"
-              >
-                <option value="all">Tüm Durumlar</option>
-                <option value="beklemede">Hazırlanıyor</option>
-                <option value="hazir">Hazır</option>
-                <option value="tamamlandi">Yayınlandı</option>
-              </select>
+          <div className="flex flex-wrap items-center gap-3 mt-4">
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-slate-400" />
+              <Select 
+                options={[
+                  { value: 'all', label: 'Tüm Durumlar' },
+                  { value: 'beklemede', label: 'Hazırlanıyor' },
+                  { value: 'hazir', label: 'Hazır' },
+                  { value: 'tamamlandi', label: 'Yayınlandı' }
+                ]}
+                value={[
+                  { value: 'all', label: 'Tüm Durumlar' },
+                  { value: 'beklemede', label: 'Hazırlanıyor' },
+                  { value: 'hazir', label: 'Hazır' },
+                  { value: 'tamamlandi', label: 'Yayınlandı' }
+                ].find(opt => opt.value === selectedStatus)}
+                onChange={(opt: any) => setSelectedStatus(opt?.value || 'all')}
+                className="w-48 text-sm"
+                classNamePrefix="react-select"
+                isSearchable={false}
+                menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                menuPosition="fixed"
+                styles={{
+                  control: (base, state) => ({
+                    ...base,
+                    backgroundColor: state.isFocused ? '#ffffff' : '#f8fafc',
+                    borderColor: state.isFocused ? '#6366f1' : '#e2e8f0',
+                    borderRadius: '0.75rem',
+                    minHeight: '40px',
+                    boxShadow: state.isFocused ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    '&:hover': { 
+                      borderColor: state.isFocused ? '#6366f1' : '#cbd5e1',
+                      backgroundColor: '#ffffff'
+                    }
+                  }),
+                  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                  menu: (base) => ({
+                    ...base,
+                    borderRadius: '1rem',
+                    boxShadow: '0 10px 40px -10px rgba(0,0,0,0.15)',
+                    border: '1px solid #f1f5f9',
+                    overflow: 'hidden',
+                    marginTop: '8px',
+                    padding: '4px'
+                  }),
+                  menuList: (base) => ({
+                    ...base,
+                    padding: 0
+                  }),
+                  option: (base, state) => ({
+                    ...base,
+                    backgroundColor: state.isSelected 
+                      ? '#eef2ff' 
+                      : state.isFocused 
+                        ? '#f8fafc' 
+                        : 'transparent',
+                    color: state.isSelected ? '#4f46e5' : '#334155',
+                    cursor: 'pointer',
+                    borderRadius: '0.5rem',
+                    margin: '2px 0',
+                    padding: '10px 14px',
+                    fontSize: '0.875rem',
+                    fontWeight: state.isSelected ? 600 : 500,
+                    transition: 'all 0.15s ease',
+                    '&:active': { backgroundColor: '#e0e7ff' }
+                  }),
+                  singleValue: (base) => ({
+                    ...base,
+                    fontWeight: 600,
+                    color: '#1e293b'
+                  })
+                }}
+              />
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-              <select 
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="bg-transparent text-sm text-slate-700 focus:outline-none"
-              >
-                <option value="all">Tüm İçerikler</option>
-                <option value="reels">Reels</option>
-                <option value="posts">Post</option>
-                <option value="stories">Story</option>
-              </select>
+            <div className="flex items-center gap-2">
+              <Select 
+                options={[
+                  { value: 'all', label: 'Tüm İçerikler' },
+                  { value: 'reels', label: 'Reels' },
+                  { value: 'posts', label: 'Post' },
+                  { value: 'stories', label: 'Story' }
+                ]}
+                value={[
+                  { value: 'all', label: 'Tüm İçerikler' },
+                  { value: 'reels', label: 'Reels' },
+                  { value: 'posts', label: 'Post' },
+                  { value: 'stories', label: 'Story' }
+                ].find(opt => opt.value === selectedType)}
+                onChange={(opt: any) => setSelectedType(opt?.value || 'all')}
+                className="w-48 text-sm"
+                classNamePrefix="react-select"
+                isSearchable={false}
+                menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                menuPosition="fixed"
+                styles={{
+                  control: (base, state) => ({
+                    ...base,
+                    backgroundColor: state.isFocused ? '#ffffff' : '#f8fafc',
+                    borderColor: state.isFocused ? '#6366f1' : '#e2e8f0',
+                    borderRadius: '0.75rem',
+                    minHeight: '40px',
+                    boxShadow: state.isFocused ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    '&:hover': { 
+                      borderColor: state.isFocused ? '#6366f1' : '#cbd5e1',
+                      backgroundColor: '#ffffff'
+                    }
+                  }),
+                  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                  menu: (base) => ({
+                    ...base,
+                    borderRadius: '1rem',
+                    boxShadow: '0 10px 40px -10px rgba(0,0,0,0.15)',
+                    border: '1px solid #f1f5f9',
+                    overflow: 'hidden',
+                    marginTop: '8px',
+                    padding: '4px'
+                  }),
+                  menuList: (base) => ({
+                    ...base,
+                    padding: 0
+                  }),
+                  option: (base, state) => ({
+                    ...base,
+                    backgroundColor: state.isSelected 
+                      ? '#eef2ff' 
+                      : state.isFocused 
+                        ? '#f8fafc' 
+                        : 'transparent',
+                    color: state.isSelected ? '#4f46e5' : '#334155',
+                    cursor: 'pointer',
+                    borderRadius: '0.5rem',
+                    margin: '2px 0',
+                    padding: '10px 14px',
+                    fontSize: '0.875rem',
+                    fontWeight: state.isSelected ? 600 : 500,
+                    transition: 'all 0.15s ease',
+                    '&:active': { backgroundColor: '#e0e7ff' }
+                  }),
+                  singleValue: (base) => ({
+                    ...base,
+                    fontWeight: 600,
+                    color: '#1e293b'
+                  })
+                }}
+              />
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto relative z-10">
+          <div className="max-w-[1400px] mx-auto p-4 md:p-6 flex flex-col xl:flex-row gap-6 lg:gap-8">
+            
+            {/* Main Content Column */}
+            <div className="flex-1 min-w-0 space-y-6 max-w-4xl mx-auto xl:mx-0 xl:max-w-none w-full order-2 xl:order-1">
 
             {/* Paket Dönemi (Merkezi) */}
             {isClient && packageStart && packageEnd && (
@@ -754,6 +971,11 @@ export default function PlansPage() {
                                     <ContentIcon size={12} />
                                     {contentConfig.label}
                                   </span>
+                                  {task.isExtra && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 border border-indigo-200" title="Müşteri Memnuniyeti Hediyesi">
+                                      🎁 Ekstra
+                                    </span>
+                                  )}
                                   {task.title && (
                                     <span className="text-sm text-slate-700 truncate">{task.title}</span>
                                   )}
@@ -785,6 +1007,103 @@ export default function PlansPage() {
                 );
               })
             )}
+            </div>
+            
+            {/* Right Column / Mobile Top Banner - Client Brand Identity */}
+            {isClient && user?.avatar && (
+              <div className="w-full xl:w-[320px] flex-shrink-0 order-1 xl:order-2">
+                <div className="sticky top-6">
+                  {/* Premium Logo Card */}
+                  <div className={`rounded-3xl border ${pkgConfig.borderLight} shadow-2xl shadow-indigo-500/10 overflow-hidden bg-gradient-to-br ${pkgConfig.gradient} relative group`}>
+                     {/* Abstract patterns */}
+                     <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent mix-blend-overlay" />
+                     <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/20 blur-3xl rounded-full pointer-events-none" />
+                     <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-black/20 blur-3xl rounded-full pointer-events-none" />
+                     
+                    <div className="px-6 pt-10 pb-8 text-center relative z-10 flex flex-col items-center">
+                      <div className="w-28 h-28 mx-auto bg-white/10 backdrop-blur-md rounded-2xl p-1.5 shadow-xl ring-1 ring-white/30 mb-5 transform transition-transform group-hover:scale-105">
+                        <div className="w-full h-full bg-white rounded-xl overflow-hidden p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={user.avatar} 
+                            alt="Brand Logo" 
+                            className="w-full h-full rounded-lg object-contain"
+                          />
+                        </div>
+                      </div>
+                      <h2 className="text-xl font-bold text-white mb-2 tracking-wide drop-shadow-md">{user.name}</h2>
+                      
+                      {/* Badge */}
+                      <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-bold mb-8 backdrop-blur-sm shadow-inner">
+                        <Crown size={14} className="text-amber-300" /> {pkgConfig.title} MARKA
+                      </div>
+                      
+                      {/* Paket İçeriği (Wow Factor) */}
+                      <div className="w-full text-left bg-black/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 mb-5 shadow-inner">
+                        <div className="text-center mb-4">
+                          <h3 className="text-2xl font-black text-white tracking-wider drop-shadow-lg mb-1">{pkgConfig.title}</h3>
+                          <p className={`text-[10px] font-bold ${pkgConfig.textColor} uppercase tracking-widest whitespace-pre-line leading-relaxed opacity-90`}>
+                            {pkgConfig.subtitle}
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2.5 mt-5">
+                          {pkgConfig.features.map((feature, idx) => (
+                            <div key={idx} className="flex items-start gap-2.5">
+                              <div className={`w-1.5 h-1.5 rounded-full ${pkgConfig.bulletColor} mt-1.5 flex-shrink-0 shadow-sm`} />
+                              <span className="text-sm font-medium text-white/90 leading-snug drop-shadow-sm">{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Hızlı Özet Koyu Tema */}
+                      <div className="w-full space-y-3 text-left bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+                        <h3 className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-2">Aylık İstatistik</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-white/70">Aylık Plan</span>
+                          <span className="text-sm font-bold text-white">{stats.total}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-white/70">Yayınlanan</span>
+                          <span className="text-sm font-bold text-emerald-400">{stats.tamamlandi}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-white/70">Bekleyen</span>
+                          <span className="text-sm font-bold text-amber-400">{stats.total - stats.tamamlandi}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Decorative Elements (Extras) */}
+                  {stats.extraCount > 0 ? (
+                    <div className="mt-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-6 shadow-lg shadow-indigo-500/20 relative overflow-hidden group hover:shadow-indigo-500/30 transition-shadow">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2 transition-transform duration-700 group-hover:scale-150" />
+                      <div className="flex items-center gap-3 mb-3 relative z-10">
+                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md shadow-inner">
+                          <span className="text-xl">🎁</span>
+                        </div>
+                        <h3 className="text-base font-bold text-white">Sürpriz!</h3>
+                      </div>
+                      <p className="text-sm text-indigo-50 leading-relaxed relative z-10 font-medium">
+                        Müşteri memnuniyeti kapsamında bu ay sizin için <span className="font-bold text-white bg-white/20 px-1.5 py-0.5 rounded">{stats.extraCount} adet</span> ekstra içerik ürettik.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-3xl p-6 border border-indigo-100/50 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2" />
+                      <Sparkles className="text-indigo-500 mb-3 relative z-10" size={24} />
+                      <h3 className="text-sm font-bold text-indigo-900 mb-2 relative z-10">Size Özel Portal</h3>
+                      <p className="text-xs text-indigo-700/80 leading-relaxed relative z-10">
+                        İçerik planlamalarınızı, onay süreçlerinizi ve tüm dijital varlıklarınızı bu ekrandan takip edebilirsiniz.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
           </div>
         </div>
       </div>

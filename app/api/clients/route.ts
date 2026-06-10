@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Paket tipi kontrolü
-    const validPackages = ['vitrin', 'plus', 'premium', 'custom']; 
+    const validPackages = ['star', 'gold', 'premium', 'custom']; 
     if (!validPackages.includes(packageType)) {
       return NextResponse.json(
         { error: 'Geçersiz paket tipi.' },

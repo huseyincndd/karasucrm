@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
       staffAvatar: task.assignee.avatar,
       staffRole: task.assignee.roleTitle,
       staffDepartment: task.assignee.roleTitle, // Legacy support
+      isExtra: task.isExtra,
       createdAt: task.createdAt
     }));
 
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, contentType, date, clientId, assignedTo, status } = body;
+    const { title, contentType, date, clientId, assignedTo, status, isExtra } = body;
 
     // Validasyon
     if (!contentType || !date || !clientId || !assignedTo) {
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
         contentType,
         date: new Date(date),
         status: status || 'beklemede',
+        isExtra: isExtra || false,
         clientId,
         assignedTo
       },
@@ -205,6 +207,7 @@ export async function POST(request: NextRequest) {
         staffId: task.assignedTo,
         staffName: task.assignee.name,
         staffAvatar: task.assignee.avatar,
+        isExtra: task.isExtra,
         createdAt: task.createdAt
       }
     }, { status: 201 });

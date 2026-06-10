@@ -6,7 +6,7 @@ const CLIENT_NAMES = [
   'Zara', 'Bosch', 'Hilton', 'Sephora', 'BurgerKing'
 ];
 
-const PACKAGES: PackageType[] = ['vitrin', 'plus', 'premium'];
+const PACKAGES: PackageType[] = ['star', 'gold', 'premium'];
 
 // Seeded random for consistent generation
 function seededRandom(seed: number): () => number {

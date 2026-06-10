@@ -63,7 +63,7 @@ model Client {
   id          String   @id @default(cuid())
   name        String
   logo        String?
-  packageType String   // vitrin, plus, premium
+  packageType String   // star, gold, premium, custom
   
   // Custom Quota (Optional)
   reelsQuota   Int?
@@ -107,6 +107,7 @@ model Task {
   contentType String   // reels, posts, stories (Frontend'de kullanılan tip)
   date        DateTime
   status      String   @default("beklemede") // beklemede, hazir, tamamlandi
+  isExtra     Boolean  @default(false)       // Müşteri kotasından düşmeyen ekstra görev
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

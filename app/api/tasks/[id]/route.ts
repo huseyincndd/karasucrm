@@ -73,6 +73,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         staffAvatar: task.assignee.avatar,
         staffRole: task.assignee.roleTitle, // Updated
         staffDepartment: task.assignee.roleTitle, // Legacy support
+        isExtra: task.isExtra,
         createdAt: task.createdAt
       }
     });
@@ -101,7 +102,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, contentType, date, status, clientId, assignedTo } = body;
+    const { title, contentType, date, status, clientId, assignedTo, isExtra } = body;
 
     // Görev var mı kontrol
     const existingTask = await prisma.task.findUnique({ where: { id } });
@@ -138,8 +139,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       const currentPeriod = getSalaryPeriod(new Date());
       const taskDate = new Date(existingTask.date);
       
+      const isTaskExtra = isExtra !== undefined ? isExtra : existingTask.isExtra;
+
       // Sadece şimdiki veya gelecekteki maaş dönemi için işlem yap (Eski görevler cüzdanı etkilemez)
-      if (isDateInSalaryPeriod(taskDate, currentPeriod)) {
+      // Ekstra görevler (isExtra) cüzdana işlemez.
+      if (isDateInSalaryPeriod(taskDate, currentPeriod) && !isTaskExtra) {
         
         // 1. Durum "Tamamlandı" olduysa -> Cüzdana Ekle
         if (status === 'tamamlandi' && existingTask.status !== 'tamamlandi') {
@@ -204,6 +208,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Admin-only güncellemeler
     if (user.isAdmin) {
       if (title !== undefined) updateData.title = title || null;
+      if (isExtra !== undefined) updateData.isExtra = isExtra;
       
       if (contentType) {
         const validContentTypes = ['reels', 'posts', 'stories'];
@@ -285,6 +290,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         staffId: task.assignedTo,
         staffName: task.assignee.name,
         staffAvatar: task.assignee.avatar,
+        isExtra: task.isExtra,
         createdAt: task.createdAt
       }
     });

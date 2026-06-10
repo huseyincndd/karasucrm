@@ -30,10 +30,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const isClient = user?.isClient;
 
-  // Müşteri nav items (sadece Takvim ve Planlarım)
+  // Müşteri nav items (Önce Planlarım, sonra Takvim)
   const clientNavItems = [
-    { label: 'Takvim', icon: LayoutDashboard, href: '/', adminOnly: false },
     { label: 'Planlarım', icon: CalendarDays, href: '/plans', adminOnly: false },
+    { label: 'Takvim', icon: LayoutDashboard, href: '/', adminOnly: false },
   ];
 
   // Ekip üyeleri nav items
@@ -72,13 +72,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Client Badge */}
+      {/* Client Premium Badge */}
       {isClient && (
-        <div className="px-5 py-3 border-b border-slate-800">
-          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-            <Building2 size={14} className="text-indigo-400" />
-            <span className="text-xs font-medium text-indigo-300">Müşteri Portalı</span>
-          </div>
+        <div className="px-5 py-6 border-b border-slate-800 flex flex-col items-center text-center bg-gradient-to-b from-indigo-500/5 to-transparent">
+          {user?.avatar ? (
+            <div className="w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shadow-indigo-500/10 mb-3 ring-1 ring-white/10">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={user.avatar} alt={user.name} className="w-full h-full rounded-xl object-cover" />
+            </div>
+          ) : (
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-3xl shadow-xl shadow-indigo-500/20 mb-3">
+              {user?.name?.charAt(0) || '?'}
+            </div>
+          )}
+          <h3 className="text-white font-bold text-base line-clamp-2">{user?.name}</h3>
+          <span className="text-[10px] font-medium text-indigo-400 mt-1.5 flex items-center gap-1.5 bg-indigo-500/10 px-2 py-1 rounded-full border border-indigo-500/20">
+            <Building2 size={12} /> Size Özel Portal
+          </span>
         </div>
       )}
 
